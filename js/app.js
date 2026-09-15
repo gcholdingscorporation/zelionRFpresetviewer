@@ -967,6 +967,7 @@
         INDEX = buildIndex();
         $('#welcome-wrap').style.display = 'none';
         $('#layout').style.display = 'flex';
+        $('#new-btn').hidden = false;
         renderHeaderMeta();
         renderSidebar();
         renderContentOnly();
@@ -978,6 +979,7 @@
     function renderWelcome() {
         $('#layout').style.display = 'none';
         $('#welcome-wrap').style.display = 'block';
+        $('#new-btn').hidden = true;
     }
 
     // ------------------------------------------------------- file loading
@@ -1057,6 +1059,7 @@
         $('#open-btn-2').onclick = function () { $('#file-input').click(); };
         $('#new-btn').onclick = function () {
             state.parsed = null;
+            $('#file-input').value = '';
             clear($('#filemeta'));
             renderWelcome();
         };
