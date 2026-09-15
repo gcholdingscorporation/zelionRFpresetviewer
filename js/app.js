@@ -130,19 +130,21 @@
             return none;
         }
 
-        if (m && m.lut && isNaN(Number(shown))) {
-            var sel = el('select', 'value');
-            sel.appendChild(el('option', null, shown));
-            sel.disabled = true;
-            return sel;
-        }
-
+        /* An on/off enum is a switch in the Configurator, not a dropdown, so
+         * this is tested before the general enum case. */
         if (shown === 'ON' || shown === 'OFF') {
             var sw = el('div', 'switch' + (shown === 'ON' ? ' on' : ''));
             sw.setAttribute('role', 'img');
             sw.setAttribute('aria-label', shown);
             sw.title = shown;
             return sw;
+        }
+
+        if (m && m.lut && isNaN(Number(shown))) {
+            var sel = el('select', 'value');
+            sel.appendChild(el('option', null, shown));
+            sel.disabled = true;
+            return sel;
         }
 
         var input = el('input', 'value' + (String(shown).length > 12 ? ' wide' : ''));
@@ -321,10 +323,6 @@
         if (scope !== 'master') { frag.appendChild(profileBar(scope)); }
 
         var grid = el('div', 'columns');
-        if (tabId === 'profiles' && !state.filter && !state.onlyChanged) {
-            var matrix = pidMatrix();
-            if (matrix) { grid.appendChild(matrix); rendered = 1; }
-        }
         var rendered = 0;
         var seen = {};
 
@@ -868,27 +866,15 @@
     /* The Configurator leads its Profiles tab with a matrix: a row per axis,
      * colour-coded, and a column per PID term. It is the most recognisable
      * thing on the tab, so the viewer builds the same one. */
-    var PID_TERMS = [
-        { key: 'p', head: 'Proportional' },
-        { key: 'i', head: 'Integral' },
-        { key: 'd', head: 'Derivative' },
-        { key: 'f', head: 'Feedforward' },
-        { key: 'b', head: 'Boost' },
-        { key: 'o', head: 'Offset' }
-    ];
-
-    var PID_AXES = ['ROLL', 'PITCH', 'YAW'];
-
-    function pidMatrix() {
-        var index = state.profile;
-        var terms = PID_TERMS.filter(function (t) {
-            return PID_AXES.some(function (axis) {
+    function pidMatrix(spec, index) {
+        var terms = spec.terms.filter(function (t) {
+            return spec.axes.some(function (axis) {
                 return !!meta(axis.toLowerCase() + '_' + t.key + '_gain');
             });
         });
         if (!terms.length) { return null; }
 
-        var box = panel('PID Controller Gains', 'profile ' + index);
+        var box = panel(spec.title, 'profile ' + index);
         var table = el('table', 'pid_table');
 
         var head = el('tr', 'pid_titlebar');
@@ -899,7 +885,7 @@
         table.appendChild(thead);
 
         var body = el('tbody');
-        PID_AXES.forEach(function (axis) {
+        spec.axes.forEach(function (axis) {
             var row = el('tr', axis);
             row.appendChild(el('td', 'axis_title', axis));
             terms.forEach(function (t) {
@@ -926,6 +912,152 @@
         table.appendChild(body);
         panelBody(box).appendChild(table);
         return box;
+    }
+
+    // ------------------------------------------- Configurator-transcribed tabs
+
+    /* One element of an array setting, which is how the Configurator addresses
+     * per-axis values like error_limit. */
+    function sliceOf(value, idx) {
+        if (idx === undefined || idx === null) { return value; }
+        if (Array.isArray(value)) { return idx < value.length ? value[idx] : null; }
+        return null;
+    }
+
+    function layoutRow(spec, index) {
+        var m = meta(spec.cli);
+        if (!m) { return null; }
+        if (!matchesFilter(spec.cli, spec.label)) { return null; }
+
+        var scope = m.s;
+        var at = scope === 'master' ? null : index;
+        var present = entryFor(spec.cli, scope, at);
+
+        var shownAll = present ? present.value : (m.d === undefined ? null : m.d);
+        var defAll = m.d === undefined ? null : m.d;
+
+        var shown = format(sliceOf(shownAll, spec.idx), m);
+        var def = format(sliceOf(defAll, spec.idx), m);
+        var changed = !!present && def !== null && shown !== def;
+        if (state.onlyChanged && !changed) { return null; }
+
+        var row = el('tr', changed ? 'is-changed' : null);
+
+        var control = el('td', 'control');
+        control.appendChild(controlFor(spec.cli, m, shown));
+        row.appendChild(control);
+
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(spec.label));
+        if (spec.unit) { lab.appendChild(el('span', 'units', '[' + spec.unit + ']')); }
+        var cli = spec.cli + (spec.idx === undefined ? '' : '[' + spec.idx + ']');
+        lab.appendChild(el('span', 'cli-name', cli));
+        row.appendChild(lab);
+
+        var was = el('td', 'was');
+        if (changed) { was.textContent = 'was ' + def; }
+        row.appendChild(was);
+
+        var help = el('td', 'help');
+        var icon = el('div', 'helpicon', '?');
+        icon.title = rowTooltip(spec.cli, m, present);
+        help.appendChild(icon);
+        row.appendChild(help);
+        return row;
+    }
+
+    /* Render a value the way the file or the firmware states it. */
+    function format(value, m) {
+        if (value === null || value === undefined) { return null; }
+        if (Array.isArray(value)) { return value.join(','); }
+        var table = lut(m);
+        if (table && typeof value === 'number' && table[value] !== undefined) {
+            return table[value];
+        }
+        return String(value);
+    }
+
+    /* A group is a toggle whose state the Configurator derives from whether the
+     * setting it governs is switched on, with its members indented under it. */
+    function layoutGroup(spec, index, tbody) {
+        var driver = meta(spec.on);
+        var rows = [];
+        spec.rows.forEach(function (r) {
+            var row = layoutRow(r, index);
+            if (row) { rows.push(row); }
+        });
+        if (!rows.length) { return 0; }
+
+        if (driver && !state.onlyChanged && !state.filter) {
+            var at = driver.s === 'master' ? null : index;
+            var present = entryFor(spec.on, driver.s, at);
+            var raw = present ? present.value : driver.d;
+            var on = !(raw === 0 || raw === 'OFF' || raw === undefined);
+
+            var head = el('tr', 'group-head');
+            var control = el('td', 'control');
+            var sw = el('div', 'switch' + (on ? ' on' : ''));
+            sw.title = on ? 'on' : 'off';
+            control.appendChild(sw);
+            head.appendChild(control);
+            var lab = el('td', 'label');
+            lab.appendChild(document.createTextNode(spec.group));
+            head.appendChild(lab);
+            head.appendChild(el('td', 'was'));
+            head.appendChild(el('td', 'help'));
+            tbody.appendChild(head);
+        }
+
+        rows.forEach(function (r) {
+            r.className = (r.className ? r.className + ' ' : '') + 'suboption';
+            tbody.appendChild(r);
+        });
+        return rows.length;
+    }
+
+    /* A tab whose layout is transcribed from the Configurator. */
+    function renderLayoutTab(tabId) {
+        var layout = (window.RF_LAYOUT || {})[tabId];
+        if (!layout) { return null; }
+
+        var frag = document.createDocumentFragment();
+        var index = layout.scope === 'rateprofile' ? state.rateProfile : state.profile;
+        if (layout.scope) { frag.appendChild(profileBar(layout.scope)); }
+
+        var grid = el('div', 'columns');
+        var rendered = 0;
+
+        if (layout.matrix && !state.filter && !state.onlyChanged) {
+            var matrix = pidMatrix(layout.matrix, index);
+            if (matrix) { grid.appendChild(matrix); rendered++; }
+        }
+
+        layout.boxes.forEach(function (box) {
+            var gui = panel(box.title, layout.scope
+                ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
+            var tbody = settingsTable(gui);
+            var n = 0;
+            box.rows.forEach(function (spec) {
+                if (spec.sub) {
+                    if (state.filter || state.onlyChanged) { return; }
+                    var head = el('tr', 'subheading');
+                    var cell = el('td', 'label');
+                    cell.colSpan = 4;
+                    cell.textContent = spec.sub;
+                    head.appendChild(cell);
+                    tbody.appendChild(head);
+                    return;
+                }
+                if (spec.group) { n += layoutGroup(spec, index, tbody); return; }
+                var row = layoutRow(spec, index);
+                if (row) { tbody.appendChild(row); n++; }
+            });
+            if (n) { grid.appendChild(gui); rendered += n; }
+        });
+
+        frag.appendChild(grid);
+        if (!rendered) { frag.appendChild(el('div', 'empty-note', emptyMessage())); }
+        return frag;
     }
 
     var RENDERERS = {
@@ -1093,9 +1225,9 @@
                 'No firmware metadata is loaded, so defaults and value names are unavailable.'));
         }
 
-        var body = RENDERERS[def.id]
-            ? RENDERERS[def.id]()
-            : renderSettingsTab(def.id, { scope: SCOPED[def.id] || 'master' });
+        var body = RENDERERS[def.id] ? RENDERERS[def.id]()
+            : renderLayoutTab(def.id)
+            || renderSettingsTab(def.id, { scope: SCOPED[def.id] || 'master' });
         host.appendChild(body);
     }
 

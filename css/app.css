@@ -643,3 +643,9 @@ pre.cli .ln.hit { background: #fff0b3; color: #000; }
     table.settings_table td.help, table.settings_table td.was { display: none; }
     table.settings_table tr { display: block; border-bottom: 1px solid var(--alternativeBackground); }
 }
+
+/* A toggle's members are indented under it, as the Configurator indents its
+   suboption rows, and a sub-heading breaks a long box into named parts. */
+table.settings_table tr.suboption td.control { padding-left: 22px; }
+table.settings_table tr.subheading td { font-weight: 700; color: var(--defaultText); padding-top: 8px; }
+table.settings_table tr.group-head td.label { font-weight: 600; }
