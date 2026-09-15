@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RF Preset Viewer</string>
+    <string name="could_not_read">Could not read that file.</string>
+    <string name="too_large">That file is too large to be a Rotorflight dump.</string>
+</resources>

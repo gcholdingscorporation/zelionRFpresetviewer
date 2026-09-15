@@ -3,15 +3,22 @@
  *
  * The whole viewer - markup, styles, scripts and the generated firmware
  * metadata - is embedded in this executable at compile time. Running it unpacks
- * the page into the user's temp folder and opens it in whatever browser Windows
- * already uses, so there is nothing to install alongside the .exe: no runtime,
- * no framework, no bundled browser engine.
+ * the page into the user's temp folder and shows it in its own plain window, so
+ * there is nothing to install alongside the .exe: no runtime, no framework, no
+ * bundled browser engine.
  *
- * It is built freestanding, with no C runtime at all, so the only DLLs it
- * imports are kernel32, shell32 and user32 - parts of Windows itself. That is
+ * The window comes from Chromium's application mode: Edge (or Chrome) launched
+ * as `--app=<url>` opens a single window with no tabs, address bar or browser
+ * chrome, which looks and behaves like a desktop app. Edge ships with Windows,
+ * so this adds no dependency - unlike WebView2, which is a separate runtime.
+ * If neither browser is registered, the page is handed to the default browser
+ * instead, which always works but looks like a web page.
+ *
+ * It is built with no C runtime at all, so the only DLLs it imports are
+ * kernel32, shell32, user32 and advapi32 - all parts of Windows itself. That is
  * why the code below calls Win32 directly (lstrlenA, WriteFile) instead of the
  * usual strlen/fwrite: linking the CRT would add a dependency on the Universal
- * CRT, which older Windows versions do not ship.
+ * CRT, which Windows versions before 10 do not ship.
  *
  * Given a file - on the command line, dropped onto the .exe, or via "Open
  * with" - the launcher embeds that file's text in the page it writes, so the
@@ -23,6 +30,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
+#include <winreg.h>
 
 /* The single-file page produced by tools/build_single.py. */
 static const unsigned char VIEWER_HTML[] = {
@@ -204,6 +212,125 @@ static int build_output_path(char *out, DWORD out_size)
     return 1;
 }
 
+/* ---------------------------------------------------------------- browser */
+
+/* Append `src` to `dst`, doing nothing if it would not fit. Returns 0 if it
+ * did not fit, so the caller can give up rather than emit a truncated path. */
+static int append(char *dst, DWORD cap, const char *src)
+{
+    int have = lstrlenA(dst);
+    int need = lstrlenA(src);
+    if ((DWORD) (have + need + 1) > cap) {
+        return 0;
+    }
+    lstrcatA(dst, src);
+    return 1;
+}
+
+/*
+ * Turn C:\Users\Someone\AppData\Local\Temp\... into a file:// URL.
+ *
+ * Temp paths routinely contain spaces and occasionally other characters that
+ * would break the command line or the URL, so everything outside an
+ * unreserved set is percent-encoded.
+ */
+static int path_to_file_url(const char *path, char *url, DWORD cap)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    DWORD n = 0;
+    const char *prefix = "file:///";
+
+    while (*prefix) {
+        if (n + 1 >= cap) { return 0; }
+        url[n++] = *prefix++;
+    }
+
+    for (const char *p = path; *p; p++) {
+        unsigned char c = (unsigned char) *p;
+        if (c == '\\') {
+            c = '/';
+        }
+        int plain = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') ||
+                    c == '/' || c == ':' || c == '.' || c == '-' ||
+                    c == '_' || c == '~';
+        if (plain) {
+            if (n + 1 >= cap) { return 0; }
+            url[n++] = (char) c;
+        } else {
+            if (n + 3 >= cap) { return 0; }
+            url[n++] = '%';
+            url[n++] = digits[(c >> 4) & 0xf];
+            url[n++] = digits[c & 0xf];
+        }
+    }
+
+    url[n] = 0;
+    return 1;
+}
+
+/*
+ * Find a Chromium-based browser through the App Paths registry key, which is
+ * where Windows records installed programs' full paths. Edge is present on
+ * every supported Windows; Chrome is tried as a second choice.
+ */
+static int find_app_browser(char *exe, DWORD cap)
+{
+    static const char *const keys[] = {
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe",
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe",
+    };
+    static const HKEY roots[] = { HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER };
+
+    for (int k = 0; k < 2; k++) {
+        for (int r = 0; r < 2; r++) {
+            DWORD size = cap;
+            if (RegGetValueA(roots[r], keys[k], NULL, RRF_RT_REG_SZ, NULL,
+                             exe, &size) == ERROR_SUCCESS && exe[0]) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+/* Open the page in its own window. Returns 0 if no such browser was found. */
+static int open_app_window(const char *page_path)
+{
+    char exe[MAX_PATH];
+    if (!find_app_browser(exe, sizeof(exe))) {
+        return 0;
+    }
+
+    char url[MAX_PATH * 4];
+    if (!path_to_file_url(page_path, url, sizeof(url))) {
+        return 0;
+    }
+
+    char cmd[MAX_PATH * 6];
+    cmd[0] = 0;
+    if (!append(cmd, sizeof(cmd), "\"") ||
+        !append(cmd, sizeof(cmd), exe) ||
+        !append(cmd, sizeof(cmd), "\" --app=\"") ||
+        !append(cmd, sizeof(cmd), url) ||
+        !append(cmd, sizeof(cmd), "\" --window-size=1400,900")) {
+        return 0;
+    }
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    memset(&pi, 0, sizeof(pi));
+    si.cb = sizeof(si);
+
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        return 0;
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 1;
+}
+
 /* ------------------------------------------------------------------- entry */
 
 void __stdcall launcher_entry(void)
@@ -261,11 +388,17 @@ void __stdcall launcher_entry(void)
     out_flush();
     CloseHandle(out_file);
 
-    HINSTANCE rc = ShellExecuteA(NULL, "open", page_path, NULL, NULL, SW_SHOWNORMAL);
-    if ((INT_PTR) rc <= 32) {
-        fail("Windows could not open the viewer in a browser.\n\n"
-             "The page was unpacked, so you can still open it yourself from\n"
-             "%TEMP%\\RotorflightPresetViewer\\viewer.html");
+    if (!open_app_window(page_path)) {
+        /* No Chromium-based browser registered: fall back to whatever is set
+         * as the default handler. It opens as an ordinary page rather than an
+         * app window, but it opens. */
+        HINSTANCE rc = ShellExecuteA(NULL, "open", page_path, NULL, NULL,
+                                     SW_SHOWNORMAL);
+        if ((INT_PTR) rc <= 32) {
+            fail("Windows could not open the viewer.\n\n"
+                 "The page was unpacked, so you can still open it yourself from\n"
+                 "%TEMP%\\RotorflightPresetViewer\\viewer.html");
+        }
     }
 
     ExitProcess(0);

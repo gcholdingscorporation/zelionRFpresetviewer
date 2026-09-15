@@ -1,0 +1,64 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.zelion.rfpresetviewer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.zelion.rfpresetviewer'
+        // 26 is the first release with XML adaptive icons, which is what lets
+        // this project ship without any binary image assets.
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // A throwaway key committed alongside the project, so that successive
+    // builds upgrade in place instead of failing with a signature mismatch.
+    // It is not a secret and must never be used to publish anything.
+    signingConfigs {
+        sideload {
+            storeFile file('../sideload-debug.keystore')
+            storePassword 'rotorflight'
+            keyAlias 'sideload'
+            keyPassword 'rotorflight'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.sideload
+        }
+        release {
+            signingConfig signingConfigs.sideload
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// The viewer itself is the single-file build from tools/build_single.py. Copy
+// it in rather than duplicating it, so the APK can never drift from the .exe
+// and the plain .html.
+def viewerSource = rootProject.file('../dist/rotorflight-preset-viewer.html')
+
+tasks.register('copyViewer', Copy) {
+    doFirst {
+        if (!viewerSource.exists()) {
+            throw new GradleException(
+                "Missing ${viewerSource}.\nRun: python3 tools/build_single.py")
+        }
+    }
+    from viewerSource
+    into layout.projectDirectory.dir('src/main/assets')
+    rename { 'viewer.html' }
+}
+
+tasks.named('preBuild') { dependsOn 'copyViewer' }

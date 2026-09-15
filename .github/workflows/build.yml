@@ -1,0 +1,88 @@
+name: build
+
+# Produces the two distributables. The Android APK has to be built here rather
+# than locally, because it needs the Android SDK.
+on:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - 'README.md'
+      - 'dist/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: parser and metadata self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tools/selftest.js
+
+  windows-exe:
+    name: portable Windows .exe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Zig is only used as a C cross-compiler; there is no Zig code here.
+      - run: pip install ziglang
+      - run: python3 tools/build_windows.py
+      - name: Confirm it depends on nothing but Windows itself
+        run: |
+          python3 - <<'PY'
+          import re
+          data = open('dist/RotorflightPresetViewer.exe', 'rb').read()
+          dlls = sorted({m.group(0).decode().lower()
+                         for m in re.finditer(rb'[A-Za-z0-9_\-]+\.dll', data, re.I)})
+          print('imports:', ', '.join(dlls))
+          allowed = {'kernel32.dll', 'shell32.dll', 'user32.dll', 'advapi32.dll'}
+          extra = set(dlls) - allowed
+          assert not extra, 'unexpected dependency: %s' % ', '.join(sorted(extra))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RotorflightPresetViewer-windows
+          path: |
+            dist/RotorflightPresetViewer.exe
+            dist/rotorflight-preset-viewer.html
+          if-no-files-found: error
+
+  android-apk:
+    name: Android .apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # The APK bundles the same single-file page the .exe does.
+      - run: python3 tools/build_single.py
+      - name: Assemble
+        working-directory: android
+        run: gradle --no-daemon assembleRelease
+      - name: Rename to something recognisable
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/*.apk out/RotorflightPresetViewer.apk
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RotorflightPresetViewer-android
+          path: out/RotorflightPresetViewer.apk
+          if-no-files-found: error

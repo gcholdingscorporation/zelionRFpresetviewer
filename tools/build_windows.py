@@ -78,7 +78,7 @@ def main():
         '-nostdlib',
         obj,
         '-o', OUT,
-        '-lkernel32', '-lshell32', '-luser32',
+        '-lkernel32', '-lshell32', '-luser32', '-ladvapi32',
         # GUI subsystem, so double-clicking the .exe opens no console window.
         '-Wl,--subsystem,windows',
         '-Wl,-e,launcher_entry',

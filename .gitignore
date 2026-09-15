@@ -4,3 +4,8 @@ node_modules/
 __pycache__/
 dist/*.pdb
 dist/*.obj
+android/app/build/
+android/.gradle/
+android/app/src/main/assets/
+android/local.properties
+out/
