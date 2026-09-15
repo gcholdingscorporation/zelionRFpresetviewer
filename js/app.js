@@ -862,6 +862,16 @@
         return n;
     }
 
+    /* On a phone the tab rail is a drawer over the content, so it has to be
+     * dismissed after a choice and whenever the viewport grows back. */
+    function setDrawer(open) {
+        $('#sidebar').classList.toggle('open', open);
+        $('#scrim').classList.toggle('on', open);
+        $('#menu-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function closeDrawer() { setDrawer(false); }
+
     function renderSidebar() {
         var bar = clear($('#sidebar'));
         bar.appendChild(el('div', 'rail-title', 'Tabs'));
@@ -873,7 +883,7 @@
             link.setAttribute('data-tab', t.id);
             link.appendChild(el('span', null, t.name));
             if (count !== null) { link.appendChild(el('span', 'count', count)); }
-            link.onclick = function () { state.tab = t.id; render(); };
+            link.onclick = function () { state.tab = t.id; closeDrawer(); render(); };
             bar.appendChild(link);
         });
     }
@@ -1047,6 +1057,17 @@
         try { saved = window.localStorage.getItem('rfpv-theme') || 'light'; } catch (e) { /* ignore */ }
         applyTheme(saved);
 
+        $('#menu-btn').onclick = function () {
+            setDrawer(!$('#sidebar').classList.contains('open'));
+        };
+        $('#scrim').onclick = closeDrawer;
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { closeDrawer(); }
+        });
+        window.addEventListener('resize', function () {
+            if (window.innerWidth > 860) { closeDrawer(); }
+        });
+
         $('#theme-btn').onclick = function () {
             applyTheme(document.documentElement.getAttribute('data-theme') === 'dark'
                 ? 'light' : 'dark');
@@ -1085,6 +1106,17 @@
             : 'No firmware metadata files were loaded.';
 
         renderWelcome();
+
+        /* A wrapper (the Windows launcher, or any host that appends a script
+         * block) can hand the viewer a file to open straight away. Exposed as a
+         * function because that block may run before or after this one. */
+        window.RFLoadPreload = function () {
+            var pre = window.RF_PRELOAD;
+            if (pre && typeof pre.text === 'string' && pre.text.length) {
+                load(pre.text, pre.name || '');
+            }
+        };
+        window.RFLoadPreload();
     }
 
     if (document.readyState === 'loading') {

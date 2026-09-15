@@ -12,7 +12,21 @@ and shows you what is in it.
 
 ## Running it
 
-There is no build step and no server requirement:
+Three ways, none of which install anything.
+
+**Windows — `dist/RotorflightPresetViewer.exe`** (~300 KB). Double-click it. It
+imports only `kernel32`, `shell32` and `user32`, so it runs on any 64-bit Windows
+with no runtime, framework or bundled browser engine — there is deliberately no
+dependency on the Universal C Runtime. Dropping a CLI dump onto the .exe (or
+using *Open with*) opens the viewer with that file already loaded.
+
+**Phone or tablet — `dist/rotorflight-preset-viewer.html`** (~295 KB). One file
+with everything embedded. Save it to your phone and open it from the Files app;
+Android and iOS both render it, and the layout switches to a single column with a
+slide-out tab drawer on narrow screens. It works with no signal — there is
+nothing to fetch.
+
+**From source** — no build step and no server:
 
 ```
 git clone https://github.com/gcholdingscorporation/zelionRFpresetviewer
@@ -26,6 +40,20 @@ over HTTP (or GitHub Pages) works equally well.
 
 Load a file by dragging it onto the page, using **Open file…**, or pasting CLI
 text into the box on the start screen.
+
+### Rebuilding the distributables
+
+```
+python3 tools/build_single.py     # dist/rotorflight-preset-viewer.html
+python3 tools/build_windows.py    # dist/RotorflightPresetViewer.exe
+```
+
+The Windows build cross-compiles from Linux or macOS and needs only
+`pip install ziglang` — Zig acts as a C compiler with a bundled mingw-w64, so
+there is no Visual Studio and no Windows machine involved. `tools/win_launcher.c`
+embeds the single-file page with C23 `#embed`, unpacks it to
+`%TEMP%\RotorflightPresetViewer\viewer.html` and hands it to the default
+browser.
 
 ## What it shows
 
@@ -119,17 +147,29 @@ exercises the line types the real one does not use.
 ## Layout
 
 ```
-index.html              the page
-css/app.css             Configurator-style light and dark themes
-js/parser.js            CLI dump / diff / preset parser
-js/schema.js            which tab and panel each setting belongs to
-js/app.js               rendering
-data/rf-4.5.js          generated firmware metadata
+index.html                the page
+css/app.css               Configurator-style light and dark themes
+js/parser.js              CLI dump / diff / preset parser
+js/schema.js              which tab and panel each setting belongs to
+js/app.js                 rendering
+data/rf-4.5.js            generated firmware metadata
 data/rf-4.6.js
-tools/gen_settings.py   regenerates data/ from a firmware checkout
-tools/selftest.js       parser and metadata checks
-samples/                example files
+dist/…viewer.html         single-file build, everything embedded
+dist/…Viewer.exe          portable Windows build
+tools/gen_settings.py     regenerates data/ from a firmware checkout
+tools/build_single.py     inlines everything into one .html
+tools/build_windows.py    cross-compiles the .exe with Zig
+tools/win_launcher.c      the Windows launcher
+tools/selftest.js         parser and metadata checks
+samples/                  example files
 ```
+
+## Not built here
+
+There is no Android `.apk` or iOS build. The single-file HTML covers both
+platforms through the browser, and installs to the home screen as an app icon if
+you serve the directory over HTTPS (GitHub Pages will do). A native APK would
+need the Android SDK; ask if you want the project and a CI workflow for it.
 
 ## Known limitations
 

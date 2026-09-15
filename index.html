@@ -10,7 +10,8 @@
 <body>
 
 <div id="header">
-    <div class="brand">ROTORFLIGHT <span>PRESET VIEWER</span></div>
+    <button class="btn" id="menu-btn" type="button" aria-label="Show tabs" aria-expanded="false">&#9776;</button>
+    <div class="brand"><span class="full">ROTORFLIGHT </span><span class="short">RF </span><span>PRESET VIEWER</span></div>
     <div class="filemeta" id="filemeta"></div>
     <button class="btn" id="new-btn" type="button">Load another</button>
     <button class="btn primary" id="open-btn" type="button">Open file…</button>
@@ -71,6 +72,7 @@
 </div>
 
 <div id="layout" style="display:none">
+    <div id="scrim"></div>
     <div id="sidebar"></div>
     <div id="content"></div>
 </div>
