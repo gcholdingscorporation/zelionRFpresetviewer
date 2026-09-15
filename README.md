@@ -10,6 +10,14 @@ Rescue, Blackbox, OSD, LED Strip, Beepers, GPS and Board.
 It does not talk to a flight controller and cannot change one. It reads a file
 and shows you what is in it.
 
+## Download
+
+Ready-to-run packages for every platform are on the
+[Releases page](https://github.com/gcholdingscorporation/zelionRFpresetviewer/releases/latest):
+the Windows `.exe`, the Android `.apk`, and the single `.html` that covers
+everything else. Each release is rebuilt from source by CI and published with
+checksums.
+
 ## Running it
 
 Four ways, none of which install a dependency.
@@ -68,6 +76,17 @@ apart.
 `.github/workflows/build.yml` builds the .exe and the .apk on every push and
 uploads both, and asserts that the .exe still imports nothing but Windows' own
 DLLs. Download them from the run's **Artifacts** section on the Actions tab.
+
+To cut a release, push a tag:
+
+```
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+`.github/workflows/release.yml` rebuilds all three packages from the tagged
+source — never from `dist/`, so a release cannot ship a stale binary — checks
+that the page embedded in the .exe and the .apk is byte for byte the published
+.html, and publishes them with a `SHA256SUMS.txt`.
 
 The Windows build cross-compiles from Linux or macOS and needs only
 `pip install ziglang` — Zig acts as a C compiler with a bundled mingw-w64, so
