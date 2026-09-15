@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rotorflight Preset Viewer</title>
+<meta name="description" content="View a Rotorflight dump all, diff all or preset file laid out like the Rotorflight Configurator tabs.">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div id="header">
+    <div class="brand">ROTORFLIGHT <span>PRESET VIEWER</span></div>
+    <div class="filemeta" id="filemeta"></div>
+    <button class="btn" id="new-btn" type="button">Load another</button>
+    <button class="btn primary" id="open-btn" type="button">Open file…</button>
+    <button class="btn" id="theme-btn" type="button">Dark</button>
+    <input type="file" id="file-input" accept=".txt,.cli,.preset,.conf,.config,text/plain" hidden>
+</div>
+
+<div id="welcome-wrap">
+    <div id="welcome">
+        <h1>Rotorflight Preset Viewer</h1>
+        <p>
+            Drop a <code>dump all</code>, <code>diff all</code> or preset file below and it is
+            laid out the way the Rotorflight Configurator lays out its tabs — Governor, Mixer,
+            Servos, Filters, PID Profiles, Rates, Modes and the rest.
+            Everything happens in your browser; nothing is uploaded.
+        </p>
+
+        <div class="dropbox">
+            <p style="margin-bottom:14px">Drag a file anywhere on this page</p>
+            <button class="btn primary" id="open-btn-2" type="button">Choose a file…</button>
+        </div>
+
+        <textarea id="paste-area" placeholder="…or paste CLI output here"></textarea>
+        <p style="margin-top:8px"><button class="btn" id="paste-btn" type="button">View pasted text</button></p>
+
+        <div class="cols">
+            <div class="gui_box">
+                <div class="gui_box_titlebar"><div>What it reads</div></div>
+                <ul>
+                    <li><code>set</code> values, master and per profile</li>
+                    <li><code>profile</code> / <code>rateprofile</code> blocks</li>
+                    <li><code>servo</code>, <code>mixer input</code>, <code>mixer rule</code></li>
+                    <li><code>aux</code> modes and <code>adjfunc</code> adjustments</li>
+                    <li><code>serial</code>, <code>feature</code>, <code>beeper</code></li>
+                    <li><code>led</code>, <code>color</code>, <code>timer</code>, <code>dma</code>, <code>resource</code></li>
+                </ul>
+            </div>
+            <div class="gui_box">
+                <div class="gui_box_titlebar"><div>What it shows</div></div>
+                <ul>
+                    <li>Each value next to its firmware default</li>
+                    <li>Anything the file changed, highlighted</li>
+                    <li>Enum names, ranges and types on hover</li>
+                    <li>A searchable list of every value</li>
+                    <li>The original file, with line numbers</li>
+                </ul>
+            </div>
+            <div class="gui_box">
+                <div class="gui_box_titlebar"><div>Good to know</div></div>
+                <ul>
+                    <li>Read-only — it cannot flash or configure anything</li>
+                    <li>Values are shown exactly as the CLI printed them</li>
+                    <li id="db-note"></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="layout" style="display:none">
+    <div id="sidebar"></div>
+    <div id="content"></div>
+</div>
+
+<div id="drop">Drop a Rotorflight CLI file to view it</div>
+
+<script src="data/rf-4.5.js"></script>
+<script src="data/rf-4.6.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/schema.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+# DUMP ALL
+#
+# version
+# Rotorflight / STM32F405 (S405) 4.6.0 Jan 10 2026 / 12:00:00 (abc1234) MSP API: 12.9
+
+# start the command batch
+batch start
+
+board_name TESTBOARD
+manufacturer_id TEST
+mcu_id 0011223344556677889900aa
+signature
+
+# name: SYNTHETIC
+
+# resources
+resource BEEPER 1 C15
+timer B00 AF2
+# pin B00: TIM3 CH3 (AF2)
+dma pin B00 0
+# pin B00: DMA1 Stream 7 Channel 5
+
+# feature
+feature -RX_PPM
+feature RX_SERIAL
+feature TELEMETRY
+feature LED_STRIP
+
+# beeper
+beeper -ON_USB
+beeper GYRO_CALIBRATED
+
+# serial
+serial 0 1 115200 57600 0 115200
+serial 2 64 115200 57600 0 115200
+serial 5 1024 115200 57600 0 115200
+
+# rxfail
+rxfail 3 s 1000
+rxfail 4 h
+
+# rxrange
+rxrange 0 990 2010
+
+# servo
+servo 1 0 -700 700 -500 500 333 0 0
+servo 2 12 -700 700 -500 500 333 0 1
+
+# mixer
+mixer input SR -1000 1000 500
+mixer rule 0 set SR S1 1000 0
+mixer rule 1 add SP S2 800 -20
+
+# led
+led 0 0,0::C:0
+color 1 60,0,255
+mode_color 0 1 2
+
+# aux
+aux 0 0 0 1700 2100 0 0
+aux 1 53 2 1300 1700 0 0
+aux 2 0 0 900 900 0 0
+
+# adjfunc
+adjfunc 0 5 255 1500 1500 3 1000 2000 1500 1500 10 0 200
+
+# master
+set gyro_lpf1_static_hz = 120
+set blackbox_log_esc = ON
+set gov_mode = STANDARD
+set motor_poles = 14,8,8,8
+set name = SYNTHETIC
+set an_unknown_setting_from_the_future = 42
+
+profile 1
+
+# profile 1
+set pitch_p_gain = 60
+set gov_headspeed = 1800
+
+# restore original profile selection
+profile 1
+
+rateprofile 2
+
+# rateprofile 2
+set roll_rc_rate = 18
+
+# restore original rateprofile selection
+rateprofile 2
+
+# save configuration
+save
+#
