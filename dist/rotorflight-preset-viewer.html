@@ -8,100 +8,276 @@
 <meta name="description" content="View a Rotorflight dump all, diff all or preset file laid out like the Rotorflight Configurator tabs.">
 <style>
 /*
- * Styling modelled on the Rotorflight Configurator: dark chrome, a fixed tab
- * rail on the left, and white "gui_box" panels with a grey titlebar. The colour
- * tokens follow the Configurator's own light/dark palettes.
+ * Styling for the Rotorflight Preset Viewer.
+ *
+ * The colour tokens in the two :root blocks below are taken from the Rotorflight
+ * Configurator 2.3 (src/css/app.css), and the section / sub-section / field
+ * styles reproduce its Section.svelte, SubSection.svelte and Field.svelte
+ * components, so a loaded file reads the way the same settings read in the
+ * Configurator. The Configurator is GPL-3.0; see LICENSE and NOTICE.
+ *
+ * Its layout language, which this follows:
+ *   - a Section is a card with a dark header bar and a light content area;
+ *   - a SubSection is a bold underlined heading grouping fields inside a card;
+ *   - a Field is one row: label on the left, control on the right, with the
+ *     unit in orange after the label.
  */
 
+/* ------------------------------------------------- tokens (Configurator 2.3) */
+
 :root {
-    --accent: #4da8da;
-    --darkAccent: #007cc7;
-    --quietHeader: #828885;
-    --defaultText: #303030;
-    --mutedText: #616161;
-    --subtleText: #8a8a8a;
-    --linkText: #203647;
-    --error: #dc0000;
-    --attention: #f07050;
-    --changed: #b26a00;
-    --changedBg: #fff6e0;
-    --boxBackground: #ffffff;
-    --alternativeBackground: #f6f6f6;
-    --sideBackground: #ffffff;
-    --pageBackground: #d8dbda;
-    --headerBackground: #3d3f3e;
-    --border: #cccccc;
-    --titlebar: #ededed;
+    --animation-speed: 0.2s ease;
+    --section-gap: 16px;
+    --section-padding: 8px;
+    --color-shadow: rgba(0, 0, 0, 0.2);
+
     --font-ui: 'Open Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
 
+html[data-theme="light"] {
+    --val-neutral-hue: 220;
+    --val-neutral-sat: 5%;
+    --val-accent-hue: 202;
+
+    --color-yellow-100: hsl(50, 100%, 92%);
+    --color-yellow-500: hsl(45, 90%, 50%);
+    --color-yellow-900: hsl(45, 100%, 30%);
+
+    --color-red-100: hsl(4, 100%, 92%);
+    --color-red-200: hsl(4, 100%, 80%);
+    --color-red-900: hsl(4, 100%, 30%);
+
+    --color-accent-100: hsl(var(--val-accent-hue), 100%, 10%);
+    --color-accent-300: hsl(var(--val-accent-hue), 100%, 30%);
+    --color-accent-400: hsl(var(--val-accent-hue), 100%, 40%);
+    --color-accent-500: hsl(var(--val-accent-hue), 100%, 50%);
+    --color-accent-700: hsl(var(--val-accent-hue), 100%, 70%);
+    --color-accent-900: hsl(var(--val-accent-hue), 100%, 90%);
+
+    --color-neutral-50: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 98%);
+    --color-neutral-100: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 97%);
+    --color-neutral-200: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 92%);
+    --color-neutral-300: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 85%);
+    --color-neutral-400: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 70%);
+    --color-neutral-500: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 50%);
+    --color-neutral-600: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 30%);
+    --color-neutral-700: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 15%);
+    --color-neutral-800: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 8%);
+    --color-neutral-900: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 3%);
+
+    --color-bg: var(--color-neutral-200);
+    --color-surface: var(--color-neutral-100);
+    --color-surface-alt: var(--color-neutral-600);
+    --color-surface-float: var(--color-neutral-50);
+    --color-hover: var(--color-neutral-200);
+    --color-border: var(--color-neutral-400);
+    --color-border-soft: var(--color-neutral-300);
+    --color-border-accent: var(--color-accent-500);
+
+    --color-text: var(--color-neutral-900);
+    --color-text-alt: var(--color-neutral-100);
+    --color-text-soft: var(--color-neutral-700);
+    --color-text-disabled: var(--color-neutral-500);
+
+    --color-input-bg: var(--color-neutral-50);
+    --color-input-bg-disabled: var(--color-neutral-200);
+
+    --color-btn-fg: var(--color-neutral-800);
+    --color-btn-bg: var(--color-neutral-300);
+    --color-btn-bg-hover: var(--color-neutral-400);
+
+    --color-unit: hsl(20, 80%, 30%);
+
+    --color-roll: hsl(2, 62%, 60%);
+    --color-pitch: hsl(122, 62%, 60%);
+    --color-yaw: hsl(242, 62%, 60%);
+
+    /* Not from the Configurator: this viewer marks values a file changed. */
+    --color-changed-bg: hsl(45, 100%, 93%);
+    --color-changed-text: hsl(35, 100%, 26%);
+    --color-changed-mark: hsl(38, 95%, 45%);
+}
+
 html[data-theme="dark"] {
-    --accent: #0375b4;
-    --darkAccent: #4da8da;
-    --quietHeader: #939682;
-    --defaultText: #e8e8e8;
-    --mutedText: #b8b8b8;
-    --subtleText: #8f8f8f;
-    --linkText: #4da8da;
-    --attention: #c04020;
-    --changed: #ffbb44;
-    --changedBg: #4a3a1a;
-    --boxBackground: #3a3a3a;
-    --alternativeBackground: #414443;
-    --sideBackground: #404040;
-    --pageBackground: #2f3130;
-    --headerBackground: #2a2c2b;
-    --border: #565656;
-    --titlebar: #484a49;
+    --val-neutral-hue: 248;
+    --val-neutral-sat: 5%;
+    --val-accent-hue: 202;
+
+    --color-yellow-100: hsl(45, 100%, 90%);
+    --color-yellow-500: hsl(45, 60%, 55%);
+    --color-yellow-900: hsl(45, 100%, 30%);
+
+    --color-red-100: hsl(4, 100%, 30%);
+    --color-red-200: hsl(4, 60%, 55%);
+    --color-red-900: hsl(4, 100%, 30%);
+
+    --color-accent-100: hsl(var(--val-accent-hue), 100%, 10%);
+    --color-accent-300: hsl(var(--val-accent-hue), 100%, 30%);
+    --color-accent-400: hsl(var(--val-accent-hue), 100%, 40%);
+    --color-accent-500: hsl(var(--val-accent-hue), 100%, 50%);
+    --color-accent-700: hsl(var(--val-accent-hue), 100%, 70%);
+    --color-accent-900: hsl(var(--val-accent-hue), 100%, 90%);
+
+    --color-neutral-950: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 5%);
+    --color-neutral-900: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 10%);
+    --color-neutral-800: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 20%);
+    --color-neutral-700: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 30%);
+    --color-neutral-600: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 40%);
+    --color-neutral-500: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 50%);
+    --color-neutral-400: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 60%);
+    --color-neutral-300: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 70%);
+    --color-neutral-200: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 80%);
+    --color-neutral-100: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 90%);
+    --color-neutral-50: hsl(var(--val-neutral-hue), var(--val-neutral-sat), 95%);
+
+    --color-bg: var(--color-neutral-950);
+    --color-surface: var(--color-neutral-900);
+    --color-surface-alt: var(--color-neutral-800);
+    --color-surface-float: var(--color-neutral-800);
+    --color-hover: var(--color-neutral-800);
+    --color-border: var(--color-neutral-700);
+    --color-border-soft: var(--color-neutral-700);
+    --color-border-accent: var(--color-accent-400);
+
+    --color-text: var(--color-neutral-50);
+    --color-text-alt: var(--color-neutral-100);
+    --color-text-soft: var(--color-neutral-100);
+    --color-text-disabled: var(--color-neutral-300);
+
+    --color-input-bg: var(--color-neutral-800);
+    --color-input-bg-disabled: var(--color-neutral-700);
+
+    --color-btn-fg: var(--color-neutral-900);
+    --color-btn-bg: var(--color-neutral-200);
+    --color-btn-bg-hover: var(--color-neutral-400);
+
+    --color-unit: hsl(20, 50%, 70%);
+
+    --color-roll: hsl(2, 48%, 45%);
+    --color-pitch: hsl(122, 48%, 40%);
+    --color-yaw: hsl(242, 48%, 55%);
+
+    --color-changed-bg: hsl(45, 25%, 18%);
+    --color-changed-text: hsl(45, 80%, 68%);
+    --color-changed-mark: hsl(45, 70%, 55%);
 }
 
-* { box-sizing: border-box; }
+/* --------------------------------------------------------------------- base */
 
-html, body {
-    height: 100%;
-    margin: 0;
-}
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
 
 body {
     font-family: var(--font-ui);
-    font-size: 12px;
-    color: var(--defaultText);
-    background: var(--pageBackground);
+    font-size: 13px;
+    color: var(--color-text);
+    background: var(--color-bg);
     overflow: hidden;
 }
 
-button, input, select, textarea { font: inherit; color: inherit; }
-
-/* ---------------------------------------------------------------- header */
-
-#header {
-    height: 46px;
-    background: var(--headerBackground);
-    color: #f0f0f0;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 0 14px;
-    border-bottom: 2px solid var(--accent);
+/* Controls, matching the Configurator's _global.scss. Everything here is
+   read-only: the viewer never edits a value, it only shows one. */
+select, input {
+    margin: 0;
+    border-radius: 2px;
+    color: var(--color-text);
+    background-color: var(--color-input-bg);
+    border: 1px solid var(--color-border-soft);
+    font-family: inherit;
 }
 
-#header .brand {
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: .04em;
+input {
+    height: 1.5rem;
+    line-height: 1.5rem;
+    font-size: 0.8rem;
+    padding: 0 8px;
+    outline: none;
+}
+
+input[type="text"].value, input[type="number"].value {
+    text-align: right;
+    width: 90px;
+}
+
+input.value.wide { width: 190px; }
+
+select { height: 1.5rem; min-width: 120px; padding: 0 4px; }
+
+input:disabled, select:disabled {
+    color: var(--color-text);
+    background-color: var(--color-input-bg-disabled);
+    opacity: 1;
+    -webkit-text-fill-color: var(--color-text);
+}
+
+button { font-family: inherit; }
+
+.btn {
+    border: none;
+    border-radius: 2px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--color-btn-fg);
+    background-color: var(--color-btn-bg);
+    transition: var(--animation-speed);
     white-space: nowrap;
 }
 
-#header .brand span { color: var(--accent); }
+.btn:hover { background-color: var(--color-btn-bg-hover); }
+.btn.primary { background-color: var(--color-accent-500); color: #fff; }
+.btn.primary:hover { filter: brightness(1.1); }
+
+/* ------------------------------------------------------------------- header */
+
+#header {
+    height: 44px;
+    background: var(--color-surface-alt);
+    color: var(--color-text-alt);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+}
+
+#header .brand { font-weight: 700; font-size: 14px; white-space: nowrap; }
+#header .brand span { color: var(--color-accent-700); }
 #header .brand .short { display: none; }
 
-#menu-btn {
-    display: none;
-    font-size: 17px;
-    line-height: 1;
-    padding: 6px 10px;
+#header .filemeta {
+    flex: 1;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--color-neutral-300);
 }
+
+#header .filemeta b { color: var(--color-text-alt); font-weight: 600; }
+
+.chip {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 9px;
+    background: var(--color-accent-500);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.chip.kind-dump { background: hsl(140, 60%, 35%); }
+.chip.kind-diff { background: var(--color-accent-500); }
+.chip.kind-preset { background: hsl(270, 50%, 50%); }
+.chip.kind-unknown { background: var(--color-neutral-500); }
+
+#menu-btn { display: none; font-size: 16px; line-height: 1; padding: 5px 9px; }
 
 #scrim {
     position: fixed;
@@ -113,75 +289,25 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 #scrim.on { display: block; }
 
-#header .filemeta {
-    flex: 1;
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    min-width: 0;
-    overflow: hidden;
-    color: #cfd2d1;
-    font-size: 11px;
-    white-space: nowrap;
-}
+/* --------------------------------------------------------------------- body */
 
-#header .filemeta b { color: #fff; font-weight: 600; }
-
-.chip {
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 9px;
-    background: var(--accent);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .05em;
-    text-transform: uppercase;
-}
-
-.chip.kind-dump { background: #2e9e5b; }
-.chip.kind-diff { background: var(--darkAccent); }
-.chip.kind-preset { background: #8a5cd6; }
-.chip.kind-unknown { background: #888; }
-
-.btn {
-    background: #c4c4c4;
-    border: 1px solid #a8a8a8;
-    border-radius: 3px;
-    color: #000;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 5px 11px;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.btn:hover { border-color: #ffbb00; }
-.btn.primary { background: var(--darkAccent); border-color: var(--darkAccent); color: #fff; }
-.btn.primary:hover { filter: brightness(1.12); }
-
-/* ------------------------------------------------------------------ body */
-
-#layout {
-    display: flex;
-    height: calc(100% - 46px);
-}
+#layout { display: flex; height: calc(100% - 44px); }
 
 #sidebar {
-    width: 178px;
-    flex: 0 0 178px;
-    background: var(--sideBackground);
-    border-right: 1px solid var(--border);
+    width: 186px;
+    flex: 0 0 186px;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border-soft);
     overflow-y: auto;
-    padding: 6px 0 20px;
+    padding-bottom: 20px;
 }
 
 #sidebar .rail-title {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .09em;
-    color: var(--quietHeader);
-    padding: 10px 14px 4px;
+    color: var(--color-text-disabled);
+    padding: 12px 14px 4px;
     font-weight: 700;
 }
 
@@ -193,24 +319,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
     padding: 7px 14px;
     cursor: pointer;
     border-left: 3px solid transparent;
-    color: var(--defaultText);
-    font-size: 12px;
+    font-size: 13px;
     user-select: none;
 }
 
-.tab-link:hover { background: var(--alternativeBackground); }
+.tab-link:hover { background: var(--color-hover); }
 
 .tab-link.active {
-    background: var(--alternativeBackground);
-    border-left-color: var(--accent);
+    background: var(--color-hover);
+    border-left-color: var(--color-accent-500);
     font-weight: 700;
 }
 
-.tab-link.empty { opacity: .42; }
+.tab-link.empty { opacity: .45; }
 
 .tab-link .count {
     font-size: 10px;
-    color: var(--subtleText);
+    color: var(--color-text-disabled);
     font-weight: 400;
     font-family: var(--font-mono);
 }
@@ -218,253 +343,277 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #content {
     flex: 1;
     overflow-y: auto;
-    padding: 14px 16px 60px;
+    padding: 0 16px 60px;
     min-width: 0;
 }
 
 .tab_title {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 300;
-    color: var(--defaultText);
-    padding-bottom: 6px;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--border);
+    padding: 14px 0 8px;
+    border-bottom: 1px solid var(--color-border-accent);
     display: flex;
     align-items: baseline;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 .tab_title .sub {
     font-size: 11px;
-    color: var(--subtleText);
+    color: var(--color-text-disabled);
     font-weight: 400;
 }
 
-/* ---------------------------------------------------------------- panels */
+/* ----------------------------------------------- sections (Section.svelte) */
 
-.grid {
+/* The Configurator lays its sections out in two columns. */
+.columns {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--section-gap);
     align-items: start;
 }
 
-.grid.wide { grid-template-columns: 1fr; }
-
-.gui_box {
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--boxBackground);
-    overflow: hidden;
+@media only screen and (max-width: 1000px) {
+    .columns { grid-template-columns: minmax(0, 1fr); }
 }
 
-.gui_box_titlebar {
-    background: var(--titlebar);
-    border-bottom: 1px solid var(--border);
-    padding: 6px 10px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--quietHeader);
+.rf-section { padding-top: var(--section-gap); }
+
+.rf-section > .container {
+    border-radius: 4px;
+    box-shadow: 0 4px 12px -4px var(--color-shadow);
+}
+
+.rf-section .header {
     display: flex;
-    justify-content: space-between;
+    height: 32px;
+    font-size: 1rem;
+    font-weight: 400;
     align-items: center;
     gap: 8px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    color: var(--color-text-alt);
+    background-color: var(--color-surface-alt);
 }
 
-.gui_box_titlebar .hint {
-    text-transform: none;
-    letter-spacing: 0;
-    font-weight: 400;
-    font-size: 10px;
-    color: var(--subtleText);
+.rf-section .header .title { padding-left: 8px; }
+.rf-section .header .grow { flex-grow: 1; }
+
+.rf-section .header .hint {
+    padding-right: 10px;
+    font-size: 11px;
+    color: var(--color-neutral-300);
     font-family: var(--font-mono);
 }
 
-.spacer_box { padding: 2px 0; }
-
-/* -------------------------------------------------------- setting rows */
-
-.setting {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 2px 10px;
-    padding: 5px 10px;
-    border-bottom: 1px solid var(--alternativeBackground);
+.rf-section .content {
+    padding: 4px;
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+    overflow: hidden;
+    background-color: var(--color-surface);
 }
 
-.setting:last-child { border-bottom: 0; }
-.setting:nth-child(even) { background: var(--alternativeBackground); }
+/* ------------------------------------------- sub-sections (SubSection.svelte) */
 
-.setting .label {
-    flex: 1 1 140px;
+.rf-subsection + .rf-subsection { margin-top: 12px; }
+
+.rf-subsection > .header {
+    padding-bottom: 2px;
+    margin: 4px;
+    font-weight: 900;
+    color: var(--color-text-soft);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ------------------------------------------------------ fields (Field.svelte) */
+
+.field { border-radius: 2px; }
+
+.field > .content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px;
+    min-height: 32px;
+}
+
+.field label {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    align-self: stretch;
+    gap: 4px;
     min-width: 0;
 }
 
-.setting .label .name {
+.field .field-label { overflow-wrap: anywhere; }
+
+.field .units {
+    margin-left: 8px;
+    min-width: fit-content;
+    color: var(--color-unit);
+}
+
+.field .control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+@media (hover: hover) {
+    .field:hover { background-color: var(--color-hover); }
+}
+
+/* The CLI name, shown small under the label so a value can be traced back to
+   the line it came from. Not a Configurator feature - the Configurator has no
+   reason to show it, a viewer does. */
+.field .cli-name {
     display: block;
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--subtleText);
-    word-break: break-all;
+    color: var(--color-text-disabled);
+    overflow-wrap: anywhere;
 }
 
-.setting .value {
-    font-family: var(--font-mono);
+/* A value the loaded file changed from its firmware default. */
+.field.is-changed { background-color: var(--color-changed-bg); }
+.field.is-changed input, .field.is-changed select {
+    color: var(--color-changed-text);
+    -webkit-text-fill-color: var(--color-changed-text);
     font-weight: 700;
-    text-align: right;
-    white-space: nowrap;
-    color: var(--defaultText);
+    border-color: var(--color-changed-mark);
 }
 
-/* A long array value (telemetry slots, RPM notch sources) gets its own line
-   rather than squeezing the label into a single-character column. */
-.setting.wide .label { flex: 1 1 100%; }
-.setting.wide .value {
-    flex: 1 1 100%;
-    text-align: left;
-    white-space: normal;
-    word-break: break-word;
-    margin-top: 2px;
-}
-.setting.wide .default {
-    flex: 1 1 100%;
-    text-align: left;
-    min-width: 0;
-}
-
-.setting .value .unit {
-    font-weight: 400;
-    color: var(--subtleText);
-    margin-left: 3px;
-}
-
-.setting .value .enum {
-    color: var(--darkAccent);
-}
-
-.setting .default {
-    font-family: var(--font-mono);
+.field .default {
     font-size: 10px;
-    color: var(--subtleText);
-    white-space: nowrap;
-    min-width: 76px;
+    font-family: var(--font-mono);
+    color: var(--color-text-disabled);
+    min-width: 74px;
     text-align: right;
 }
 
-.setting.is-changed { background: var(--changedBg); }
-.setting.is-changed .value { color: var(--changed); }
-.setting.is-changed .label > .text::after {
-    content: '\2022';
-    color: var(--changed);
-    margin-left: 5px;
-    font-size: 14px;
-    line-height: 0;
-}
+.field.is-changed .default { color: var(--color-changed-mark); }
 
-.setting.is-default .value { color: var(--mutedText); font-weight: 400; }
-.setting.is-unknown .value { color: var(--attention); }
+/* -------------------------------------------------------------- PID matrix */
 
-.empty-note {
-    padding: 14px;
-    color: var(--subtleText);
-    font-style: italic;
-}
-
-/* --------------------------------------------------------------- tables */
-
-table.rf {
+table.pid-table, table.rf {
     width: 100%;
     border-collapse: collapse;
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
 }
 
-table.rf th {
-    background: var(--titlebar);
-    color: var(--quietHeader);
-    font-family: var(--font-ui);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    text-align: right;
-    padding: 5px 8px;
-    border-bottom: 1px solid var(--border);
+table.pid-table th, table.rf th {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--color-text-soft);
+    padding: 4px 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
 }
 
+table.pid-table td { padding: 3px 6px; text-align: center; }
+table.pid-table td.axis {
+    text-align: left;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 2px;
+    padding: 3px 10px;
+}
+
+td.axis.roll { background: var(--color-roll); }
+td.axis.pitch { background: var(--color-pitch); }
+td.axis.yaw { background: var(--color-yaw); }
+
+table.pid-table input { width: 72px; }
+
+/* ------------------------------------------------------------ plain tables */
+
+table.rf { font-family: var(--font-mono); font-size: 11px; }
+
+table.rf th { text-align: right; font-family: var(--font-ui); }
 table.rf th:first-child, table.rf td:first-child { text-align: left; }
 
 table.rf td {
-    padding: 4px 8px;
+    padding: 4px 6px;
     text-align: right;
-    border-bottom: 1px solid var(--alternativeBackground);
+    border-bottom: 1px solid var(--color-border-soft);
     white-space: nowrap;
 }
 
-table.rf tbody tr:nth-child(even) { background: var(--alternativeBackground); }
+table.rf tbody tr:last-child td { border-bottom: 0; }
+table.rf tbody tr:hover { background: var(--color-hover); }
 table.rf td.name { font-family: var(--font-ui); text-align: left; }
-table.rf td.dim { color: var(--subtleText); }
-table.rf td.wrap { white-space: normal; word-break: break-word; }
-table.rf td.on { color: #2e9e5b; font-weight: 700; }
-table.rf td.off { color: var(--subtleText); }
-table.rf .scroll { overflow-x: auto; }
+table.rf td.dim { color: var(--color-text-disabled); }
+table.rf td.on { color: var(--color-accent-300); font-weight: 700; }
+table.rf td.off { color: var(--color-text-disabled); }
+table.rf td.wrap { white-space: normal; overflow-wrap: anywhere; }
 
 .tablewrap { overflow-x: auto; }
 
-/* ------------------------------------------------------- profile picker */
+/* --------------------------------------------------- profile tab selector */
 
-.pillbar {
+.profile-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 12px;
-    align-items: center;
+    gap: 2px;
+    margin-top: var(--section-gap);
+    border-bottom: 1px solid var(--color-border-accent);
 }
 
-.pillbar .lbl {
+.profile-tabs .lbl {
+    align-self: center;
     font-size: 11px;
-    color: var(--quietHeader);
+    color: var(--color-text-disabled);
     text-transform: uppercase;
-    letter-spacing: .05em;
+    letter-spacing: .06em;
     font-weight: 700;
-    margin-right: 4px;
+    margin-right: 8px;
 }
 
-.pill {
-    padding: 4px 11px;
-    border: 1px solid var(--border);
-    border-radius: 13px;
-    background: var(--boxBackground);
+.profile-tab {
+    padding: 6px 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-soft);
+    border-bottom: 0;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
     user-select: none;
 }
 
-.pill:hover { border-color: var(--accent); }
-.pill.active { background: var(--darkAccent); border-color: var(--darkAccent); color: #fff; font-weight: 700; }
-.pill.dim { opacity: .5; }
-.pill .tag { font-size: 9px; opacity: .8; margin-left: 4px; }
+.profile-tab:hover { background: var(--color-hover); }
 
-/* --------------------------------------------------------------- filter */
+.profile-tab.active {
+    background: var(--color-accent-500);
+    border-color: var(--color-accent-500);
+    color: #fff;
+    font-weight: 700;
+}
+
+.profile-tab.dim { opacity: .55; }
+.profile-tab .tag { font-size: 9px; opacity: .85; margin-left: 5px; }
+
+/* ------------------------------------------------------------------ misc */
 
 .toolbar {
     display: flex;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-top: 12px;
 }
 
-.toolbar input[type="search"], .toolbar input[type="text"] {
+.toolbar input[type="search"] {
     flex: 1;
     min-width: 180px;
-    padding: 6px 9px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--boxBackground);
+    height: 1.9rem;
 }
 
 .toolbar label {
@@ -473,15 +622,33 @@ table.rf .scroll { overflow-x: auto; }
     gap: 5px;
     white-space: nowrap;
     cursor: pointer;
-    color: var(--mutedText);
+    color: var(--color-text-soft);
+    font-size: 12px;
 }
 
-/* ------------------------------------------------------------ drop zone */
+.empty-note {
+    padding: 14px 8px;
+    color: var(--color-text-disabled);
+    font-style: italic;
+}
+
+.note {
+    border-radius: 4px;
+    border-left: 3px solid var(--color-accent-500);
+    background: var(--color-surface);
+    padding: 9px 11px;
+    margin-top: var(--section-gap);
+    color: var(--color-text-soft);
+    line-height: 1.55;
+    box-shadow: 0 4px 12px -4px var(--color-shadow);
+}
+
+.note.warn { border-left-color: var(--color-red-200); }
 
 #drop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 124, 199, .86);
+    background: hsla(var(--val-accent-hue), 100%, 40%, .86);
     color: #fff;
     display: none;
     align-items: center;
@@ -494,47 +661,46 @@ table.rf .scroll { overflow-x: auto; }
 
 #drop.on { display: flex; }
 
-#welcome {
-    max-width: 780px;
-    margin: 6vh auto;
-    text-align: center;
-}
+/* ---------------------------------------------------------------- welcome */
 
+#welcome { max-width: 800px; margin: 5vh auto; text-align: center; padding: 0 16px; }
 #welcome h1 { font-size: 26px; font-weight: 300; margin: 0 0 6px; }
-#welcome p { color: var(--mutedText); line-height: 1.6; }
+#welcome p { color: var(--color-text-soft); line-height: 1.6; }
 
 #welcome .dropbox {
     margin: 22px 0;
-    border: 2px dashed var(--border);
+    border: 2px dashed var(--color-border);
     border-radius: 6px;
     padding: 34px 20px;
-    background: var(--boxBackground);
+    background: var(--color-surface);
 }
 
-#welcome .dropbox.hot { border-color: var(--accent); }
+#welcome .dropbox.hot { border-color: var(--color-border-accent); }
 
 #welcome textarea {
     width: 100%;
-    height: 130px;
+    height: 120px;
     font-family: var(--font-mono);
     font-size: 11px;
     padding: 8px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--boxBackground);
+    border: 1px solid var(--color-border-soft);
+    border-radius: 2px;
+    background: var(--color-input-bg);
+    color: var(--color-text);
     resize: vertical;
 }
 
 #welcome .cols {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--section-gap);
     text-align: left;
     margin-top: 20px;
 }
 
-#welcome .cols .gui_box { padding-bottom: 6px; }
-#welcome .cols li { margin: 3px 0 3px 16px; color: var(--mutedText); }
+#welcome .cols .rf-section { padding-top: 0; }
+#welcome .cols li { margin: 4px 0 4px 18px; color: var(--color-text-soft); }
+#welcome .cols ul { padding: 6px 4px 10px; }
 
 /* ------------------------------------------------------------- CLI view */
 
@@ -542,13 +708,13 @@ pre.cli {
     font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1.55;
-    background: var(--boxBackground);
-    border: 1px solid var(--border);
+    background: var(--color-surface);
     border-radius: 4px;
+    box-shadow: 0 4px 12px -4px var(--color-shadow);
     padding: 10px 0;
-    margin: 0;
+    margin-top: var(--section-gap);
     overflow: auto;
-    max-height: calc(100vh - 210px);
+    max-height: calc(100vh - 220px);
 }
 
 pre.cli .ln {
@@ -556,7 +722,7 @@ pre.cli .ln {
     padding: 0 12px 0 60px;
     position: relative;
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 pre.cli .ln::before {
@@ -565,46 +731,29 @@ pre.cli .ln::before {
     left: 0;
     width: 48px;
     text-align: right;
-    color: var(--subtleText);
-    opacity: .7;
+    color: var(--color-text-disabled);
 }
 
-pre.cli .ln.c { color: var(--subtleText); }
-pre.cli .ln.s { color: var(--defaultText); }
-pre.cli .ln.hit { background: rgba(255, 187, 0, .28); }
+pre.cli .ln.c { color: var(--color-text-disabled); }
+pre.cli .ln.hit { background: var(--color-yellow-100); color: var(--color-neutral-900); }
 
-.note {
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    background: var(--boxBackground);
-    border-radius: 3px;
-    padding: 9px 11px;
-    margin-bottom: 12px;
-    color: var(--mutedText);
-    line-height: 1.55;
-}
+/* --------------------------------------------------------------- responsive */
 
-.note.warn { border-left-color: var(--attention); }
-
-/* ------------------------------------------------------------ responsive */
-
-@media (max-width: 860px) {
+@media only screen and (max-width: 860px) {
     #header { gap: 8px; padding: 0 10px; }
     #header .filemeta { display: none; }
     #header .brand .full { display: none; }
     #header .brand .short { display: inline; }
-    #header .brand { font-size: 13px; }
     #menu-btn { display: block; }
     #new-btn { display: none; }
 
-    /* The tab rail slides in over the content instead of taking a column. */
     #sidebar {
         position: fixed;
-        top: 46px;
+        top: 44px;
         bottom: 0;
         left: 0;
-        width: 232px;
-        flex-basis: 232px;
+        width: 236px;
+        flex-basis: 236px;
         z-index: 20;
         transform: translateX(-100%);
         transition: transform .18s ease-out;
@@ -613,28 +762,15 @@ pre.cli .ln.hit { background: rgba(255, 187, 0, .28); }
 
     #sidebar.open { transform: translateX(0); }
 
-    .tab-link { padding: 11px 16px; font-size: 13px; }
-
-    #content { padding: 10px 10px 48px; }
-    .tab_title { font-size: 17px; flex-wrap: wrap; gap: 4px 10px; }
+    .tab-link { padding: 11px 16px; }
+    #content { padding: 0 10px 48px; }
+    .tab_title { font-size: 18px; }
     .tab_title .sub { flex: 1 1 100%; }
 
-    .toolbar input[type="search"] { min-width: 0; }
-
-    /* Give the value room; the default moves under the label. */
-    .setting { padding: 7px 10px; }
-    .setting .default { flex: 1 1 100%; text-align: left; min-width: 0; }
-
-    .pill { padding: 7px 14px; }
-
-    #welcome { margin: 3vh auto; }
-    #welcome h1 { font-size: 21px; }
-    #welcome .dropbox { padding: 22px 14px; }
-}
-
-/* A phone in landscape, or a small tablet, still gets the rail. */
-@media (max-width: 860px) and (min-width: 640px) {
-    #sidebar { width: 200px; flex-basis: 200px; }
+    /* The Configurator stacks the label above the control on a phone. */
+    .field > .content { min-height: 48px; flex-wrap: wrap; padding: 6px 4px; }
+    .field .field-label { font-weight: 600; }
+    .field .default { flex: 1 1 100%; text-align: left; }
 }
 
 </style>
@@ -670,35 +806,26 @@ pre.cli .ln.hit { background: rgba(255, 187, 0, .28); }
         <p style="margin-top:8px"><button class="btn" id="paste-btn" type="button">View pasted text</button></p>
 
         <div class="cols">
-            <div class="gui_box">
-                <div class="gui_box_titlebar"><div>What it reads</div></div>
-                <ul>
+            <div class="rf-section"><div class="container"><div class="header"><span class="title">What it reads</span></div><div class="content"><ul>
                     <li><code>set</code> values, master and per profile</li>
                     <li><code>profile</code> / <code>rateprofile</code> blocks</li>
                     <li><code>servo</code>, <code>mixer input</code>, <code>mixer rule</code></li>
                     <li><code>aux</code> modes and <code>adjfunc</code> adjustments</li>
                     <li><code>serial</code>, <code>feature</code>, <code>beeper</code></li>
                     <li><code>led</code>, <code>color</code>, <code>timer</code>, <code>dma</code>, <code>resource</code></li>
-                </ul>
-            </div>
-            <div class="gui_box">
-                <div class="gui_box_titlebar"><div>What it shows</div></div>
-                <ul>
+                </ul></div></div></div>
+            <div class="rf-section"><div class="container"><div class="header"><span class="title">What it shows</span></div><div class="content"><ul>
                     <li>Each value next to its firmware default</li>
                     <li>Anything the file changed, highlighted</li>
                     <li>Enum names, ranges and types on hover</li>
                     <li>A searchable list of every value</li>
                     <li>The original file, with line numbers</li>
-                </ul>
-            </div>
-            <div class="gui_box">
-                <div class="gui_box_titlebar"><div>Good to know</div></div>
-                <ul>
+                </ul></div></div></div>
+            <div class="rf-section"><div class="container"><div class="header"><span class="title">Good to know</span></div><div class="content"><ul>
                     <li>Read-only — it cannot flash or configure anything</li>
                     <li>Values are shown exactly as the CLI printed them</li>
                     <li id="db-note"></li>
-                </ul>
-            </div>
+                </ul></div></div></div>
         </div>
     </div>
 </div>
@@ -711,6 +838,12 @@ pre.cli .ln.hit { background: rgba(255, 187, 0, .28); }
 
 <div id="drop">Drop a Rotorflight CLI file to view it</div>
 
+<script>
+// Generated by tools/gen_labels.py from the Rotorflight
+// Configurator (GPL-3.0; see NOTICE). Do not edit by hand.
+window.RF_LABELS = {"acc_trim_pitch":{"l":"Accelerometer Pitch Trim","s":"Accelerometer Trim"},"acc_trim_roll":{"l":"Accelerometer Roll Trim","s":"Accelerometer Trim"},"cyclic_cross_coupling_cutoff":{"l":"Cross-Coupling Cutoff Frequency","s":"Main Rotor Settings","u":"Hz"},"cyclic_cross_coupling_gain":{"l":"Cross-Coupling Gain","s":"Main Rotor Settings"},"cyclic_cross_coupling_ratio":{"l":"Cross-Coupling Ratio","s":"Main Rotor Settings","u":"%"},"dshot_bidir":{"l":"Dshot RPM Telemetry","s":"RPM"},"dyn_notch_count":{"l":"Notch Count","s":"Dynamic Filter"},"dyn_notch_max_hz":{"l":"Notch Maximum Frequency","s":"Dynamic Filter","u":"Hz"},"dyn_notch_min_hz":{"l":"Notch Minimum Frequency","s":"Dynamic Filter","u":"Hz"},"dyn_notch_q":{"l":"Notch Q","s":"Dynamic Filter"},"error_decay_limit_cyclic":{"l":"Error Decay maximum rate","s":"Main Rotor Settings","u":"&deg;/s"},"error_decay_limit_yaw":{"l":"Error Decay maximum rate","s":"Tail Rotor Settings","u":"&deg;/s"},"error_decay_time_cyclic":{"l":"Error Decay time","s":"Main Rotor Settings","u":"s"},"error_decay_time_ground":{"l":"Decay Time","s":"PID Controller Settings","u":"s"},"error_decay_time_yaw":{"l":"Error Decay time","s":"Tail Rotor Settings","u":"s"},"gov_auto_throttle":{"l":"Auto Throttle","s":"General","u":"%"},"gov_autorotation_timeout":{"l":"Autorotation Timeout","s":"General","u":"s"},"gov_d_gain":{"l":"D-gain","s":"Governor Settings"},"gov_f_gain":{"l":"Feedforward Gain","s":"Governor Settings"},"gov_fallback_drop":{"l":"Throttle Fallback Drop","s":"Governor Settings","u":"%"},"gov_ff_filter":{"l":"Precomp Bandwidth","s":"Filters","u":"Hz"},"gov_handover_throttle":{"l":"Handover Throttle","s":"General","u":"%"},"gov_headspeed":{"l":"Full Headspeed","s":"Governor Settings","u":"rpm"},"gov_i_gain":{"l":"I-gain","s":"Governor Settings"},"gov_idle_throttle":{"l":"Idle Throttle","s":"General","u":"%"},"gov_lost_headspeed_timeout":{"l":"Headspeed Signal Timeout","s":"General","u":"s"},"gov_max_throttle":{"l":"Maximum Throttle","s":"Governor Settings","u":"%"},"gov_min_throttle":{"l":"Minimum Throttle","s":"Governor Settings","u":"%"},"gov_mode":{"l":"Governor Mode","s":"General"},"gov_p_gain":{"l":"P-gain","s":"Governor Settings"},"gov_recovery_time":{"l":"Recovery Time","s":"Motor Ramp","u":"s"},"gov_spooldown_time":{"l":"Spooldown Time","s":"Motor Ramp","u":"s"},"gov_spoolup_min_throttle":{"l":"Spoolup Minimum Throttle","s":"General","u":"%"},"gov_spoolup_time":{"l":"Spoolup Time","s":"Motor Ramp","u":"s"},"gov_startup_time":{"l":"Startup Time","s":"Motor Ramp","u":"s"},"gov_throttle_hold_timeout":{"l":"Throttle Hold Timeout","s":"General","u":"s"},"gov_throttle_type":{"l":"Throttle Type","s":"General"},"gov_tracking_time":{"l":"Tracking Time","s":"Motor Ramp","u":"s"},"gov_tta_filter":{"l":"TTA Bandwidth","s":"Filters","u":"Hz"},"gov_zero_throttle_timeout":{"l":"Throttle Signal Timeout","s":"General","u":"s"},"iterm_relax_type":{"l":"I-term Relax Type","s":"PID Controller Settings"},"model_id":{"l":"Model Id","s":"Personalization"},"rescue_climb_collective":{"l":"Climb Collective","s":"Rescue Settings","u":"%"},"rescue_climb_time":{"l":"Climb Time","s":"Rescue Settings","u":"s"},"rescue_exit_time":{"l":"Exit Time","s":"Rescue Settings","u":"s"},"rescue_flip_gain":{"l":"Flip-to-Upright Gain","s":"Rescue Settings"},"rescue_flip_time":{"l":"Flip Fail Time","s":"Rescue Settings","u":"s"},"rescue_hover_altitude":{"l":"Hover Altitude","s":"Rescue Settings","u":"m"},"rescue_hover_collective":{"l":"Hover Collective","s":"Rescue Settings","u":"%"},"rescue_level_gain":{"l":"Leveling Gain","s":"Rescue Settings"},"rescue_max_collective":{"l":"Maximum Collective","s":"Rescue Settings","u":"%"},"rx_pulse_max":{"l":"Maximum Pulse Width","s":"Pulse Width Limit","u":"\u03bcs"},"rx_pulse_min":{"l":"Minimum Pulse Width","s":"Pulse Width Limit","u":"\u03bcs"}};
+
+</script>
 <script>
 // Generated by tools/gen_settings.py from rotorflight-firmware 4.5.
 // Do not edit by hand.
@@ -1575,7 +1708,15 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         vbat: 'Voltage', vtx: 'VTX'
     };
 
+    /* The Configurator's own label for this setting, where it has one. */
+    function configuratorLabel(name) {
+        var table = global.RF_LABELS;
+        return table && table[name] ? table[name] : null;
+    }
+
     function prettify(name) {
+        var real = configuratorLabel(name);
+        if (real && real.l) { return real.l; }
         if (LABELS[name]) { return LABELS[name]; }
         var words = name.split('_');
         var out = words.map(function (w, i) {
@@ -1589,6 +1730,8 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     /* A unit is only shown when the setting name itself states one, so the
      * viewer never invents a scale it cannot verify. */
     function unitFor(name) {
+        var real = configuratorLabel(name);
+        if (real && real.u) { return real.u; }
         if (/_hz$/.test(name)) { return 'Hz'; }
         if (/_ms$/.test(name)) { return 'ms'; }
         if (/_us(ec)?$/.test(name)) { return 'us'; }
@@ -1621,6 +1764,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     }
 
     global.RFSchema = {
+        configuratorLabel: configuratorLabel,
         TABS: TABS,
         SECTIONS: SECTIONS,
         PG_TAB: PG_TAB,
@@ -1752,8 +1896,45 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
 
     // --------------------------------------------------------- row builder
 
-    /* One setting row. `present` is the parsed entry (null when the file left
-     * the setting at its default, which is the normal case in a `diff`). */
+    /* The read-only control a value is shown in. The Configurator puts every
+     * setting in a real widget rather than in text, and which widget it is says
+     * something about the setting, so the viewer picks the same way: a dropdown
+     * for an enum, a checkbox for a switch, a number box for the rest. */
+    function controlFor(name, m, shown) {
+        if (shown === null || shown === undefined) {
+            var none = el('input', 'value');
+            none.type = 'text';
+            none.value = '—';
+            none.disabled = true;
+            return none;
+        }
+
+        if (m && m.lut && isNaN(Number(shown))) {
+            var sel = el('select');
+            sel.appendChild(el('option', null, shown));
+            sel.disabled = true;
+            return sel;
+        }
+
+        if (shown === 'ON' || shown === 'OFF') {
+            var box = el('input');
+            box.type = 'checkbox';
+            box.checked = shown === 'ON';
+            box.disabled = true;
+            box.setAttribute('aria-label', shown);
+            return box;
+        }
+
+        var input = el('input', 'value' + (String(shown).length > 12 ? ' wide' : ''));
+        input.type = 'text';
+        input.value = shown;
+        input.disabled = true;
+        return input;
+    }
+
+    /* One setting, as a Field row: label on the left, control on the right,
+     * unit after the label. `present` is the parsed entry, or null when the
+     * file left the setting at its default - the normal case in a `diff`. */
     function settingRow(name, present) {
         var m = meta(name);
         var label = S.prettify(name);
@@ -1763,47 +1944,41 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         var def = defaultDisplay(name);
         var known = !!m;
         var changed = !!present && def !== null && shown !== def;
-        var atDefault = !present && def !== null;
 
         if (state.onlyChanged && !changed) { return null; }
 
-        var row = el('div', 'setting' +
-            (shown !== null && String(shown).length > 26 ? ' wide' : '') +
-            (changed ? ' is-changed' : '') +
-            (atDefault ? ' is-default' : '') +
-            (!known ? ' is-unknown' : ''));
+        var field = el('div', 'field' + (changed ? ' is-changed' : ''));
+        var content = el('div', 'content');
 
-        var lab = el('div', 'label');
-        lab.appendChild(el('span', 'text', label));
-        lab.appendChild(el('span', 'name', name));
-        row.appendChild(lab);
+        var lab = el('label');
+        var text = el('span', 'field-label');
+        text.appendChild(document.createTextNode(label));
+        text.appendChild(el('span', 'cli-name', name));
+        lab.appendChild(text);
 
-        var val = el('div', 'value');
-        if (shown === null || shown === undefined) {
-            val.appendChild(el('span', 'enum', '—'));
-        } else if (m && m.lut && isNaN(Number(shown))) {
-            val.appendChild(el('span', 'enum', shown));
-        } else {
-            val.appendChild(document.createTextNode(shown));
-        }
         var unit = known ? S.unitFor(name) : '';
-        if (unit && shown !== null) { val.appendChild(el('span', 'unit', unit)); }
-        row.appendChild(val);
+        if (unit) { lab.appendChild(el('span', 'units', '[ ' + unit + ' ]')); }
+        content.appendChild(lab);
 
-        var d = el('div', 'default');
+        var control = el('div', 'control');
+        control.appendChild(controlFor(name, m, shown));
+
+        var d = el('span', 'default');
         if (!known) {
             d.textContent = 'not in metadata';
         } else if (def === null) {
-            d.textContent = 'default unknown';
+            d.textContent = 'default ?';
         } else if (changed) {
-            d.textContent = 'default ' + def;
+            d.textContent = 'was ' + def;
         } else {
             d.textContent = 'default';
         }
-        row.appendChild(d);
+        control.appendChild(d);
+        content.appendChild(control);
 
-        row.title = rowTooltip(name, m, present);
-        return row;
+        field.appendChild(content);
+        field.title = rowTooltip(name, m, present);
+        return field;
     }
 
     function rowTooltip(name, m, present) {
@@ -1838,16 +2013,19 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     }
 
     function panel(title, hint) {
-        var box = el('div', 'gui_box');
-        var bar = el('div', 'gui_box_titlebar');
-        bar.appendChild(el('div', null, title));
-        if (hint) { bar.appendChild(el('div', 'hint', hint)); }
-        box.appendChild(bar);
-        box.appendChild(el('div', 'spacer_box'));
-        return box;
+        var section = el('div', 'rf-section');
+        var container = el('div', 'container');
+        var header = el('div', 'header');
+        header.appendChild(el('span', 'title', title));
+        header.appendChild(el('span', 'grow'));
+        if (hint) { header.appendChild(el('span', 'hint', hint)); }
+        container.appendChild(header);
+        container.appendChild(el('div', 'content'));
+        section.appendChild(container);
+        return section;
     }
 
-    function panelBody(box) { return box.lastChild; }
+    function panelBody(section) { return section.firstChild.lastChild; }
 
     // ------------------------------------------------------ tab inventory
 
@@ -1912,7 +2090,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
 
         if (scope !== 'master') { frag.appendChild(profileBar(scope)); }
 
-        var grid = el('div', 'grid');
+        var grid = el('div', 'columns');
         var rendered = 0;
         var seen = {};
 
@@ -1965,9 +2143,9 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     }
 
     function profileBar(kind) {
-        var bar = el('div', 'pillbar');
+        var bar = el('div', 'profile-tabs');
         var isRate = kind === 'rateprofile';
-        bar.appendChild(el('span', 'lbl', isRate ? 'Rate profile' : 'PID profile'));
+        bar.appendChild(el('span', 'lbl', isRate ? 'Rate profile' : 'Profile'));
 
         var sections = isRate ? state.parsed.rateProfiles : state.parsed.profiles;
         var active = isRate ? state.parsed.activeRateProfile : state.parsed.activeProfile;
@@ -1976,8 +2154,10 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         for (var i = 0; i < 6; i++) {
             (function (n) {
                 var has = sections[n] && Object.keys(sections[n]).length;
-                var p = el('div', 'pill' + (n === current ? ' active' : '') + (has ? '' : ' dim'));
-                p.appendChild(document.createTextNode(String(n)));
+                var p = el('div', 'profile-tab' + (n === current ? ' active' : '') +
+                    (has ? '' : ' dim'));
+                p.appendChild(document.createTextNode(
+                    (isRate ? 'Rate #' : 'Profile #') + (n + 1)));
                 if (n === active) { p.appendChild(el('span', 'tag', 'selected')); }
                 p.title = has ? (Object.keys(sections[n]).length + ' values in file')
                               : 'no values in file (all at default)';
@@ -2039,7 +2219,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     function renderSetup() {
         var p = state.parsed;
         var frag = document.createDocumentFragment();
-        var grid = el('div', 'grid');
+        var grid = el('div', 'columns');
 
         var fw = panel('Firmware');
         var fwb = panelBody(fw);
@@ -2074,14 +2254,21 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             ftb.appendChild(el('div', 'empty-note', 'No feature changes in this file.'));
         } else {
             p.features.forEach(function (f) {
-                var row = el('div', 'setting' + (f.enabled ? '' : ' is-default'));
-                var lab = el('div', 'label');
-                lab.appendChild(el('span', 'text', f.name));
-                row.appendChild(lab);
-                var v = el('div', 'value');
-                v.appendChild(el('span', 'enum', f.enabled ? 'ENABLED' : 'DISABLED'));
-                row.appendChild(v);
-                ftb.appendChild(row);
+                var field = el('div', 'field');
+                var content = el('div', 'content');
+                var lab = el('label');
+                lab.appendChild(el('span', 'field-label', f.name));
+                content.appendChild(lab);
+                var control = el('div', 'control');
+                var box = el('input');
+                box.type = 'checkbox';
+                box.checked = f.enabled;
+                box.disabled = true;
+                control.appendChild(box);
+                control.appendChild(el('span', 'default', f.enabled ? 'enabled' : 'disabled'));
+                content.appendChild(control);
+                field.appendChild(content);
+                ftb.appendChild(field);
             });
         }
         grid.appendChild(ft);
@@ -2110,12 +2297,20 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     }
 
     function infoRow(label, value) {
-        var row = el('div', 'setting');
-        var lab = el('div', 'label');
-        lab.appendChild(el('span', 'text', label));
-        row.appendChild(lab);
-        row.appendChild(el('div', 'value', value === null || value === undefined ? '—' : value));
-        return row;
+        var field = el('div', 'field');
+        var content = el('div', 'content');
+        var lab = el('label');
+        lab.appendChild(el('span', 'field-label', label));
+        content.appendChild(lab);
+        var control = el('div', 'control');
+        var input = el('input', 'value wide');
+        input.type = 'text';
+        input.value = value === null || value === undefined ? '—' : String(value);
+        input.disabled = true;
+        control.appendChild(input);
+        content.appendChild(control);
+        field.appendChild(content);
+        return field;
     }
 
     // ------------------------------------------------------------ ports tab

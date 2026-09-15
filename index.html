@@ -38,35 +38,26 @@
         <p style="margin-top:8px"><button class="btn" id="paste-btn" type="button">View pasted text</button></p>
 
         <div class="cols">
-            <div class="gui_box">
-                <div class="gui_box_titlebar"><div>What it reads</div></div>
-                <ul>
+            <div class="rf-section"><div class="container"><div class="header"><span class="title">What it reads</span></div><div class="content"><ul>
                     <li><code>set</code> values, master and per profile</li>
                     <li><code>profile</code> / <code>rateprofile</code> blocks</li>
                     <li><code>servo</code>, <code>mixer input</code>, <code>mixer rule</code></li>
                     <li><code>aux</code> modes and <code>adjfunc</code> adjustments</li>
                     <li><code>serial</code>, <code>feature</code>, <code>beeper</code></li>
                     <li><code>led</code>, <code>color</code>, <code>timer</code>, <code>dma</code>, <code>resource</code></li>
-                </ul>
-            </div>
-            <div class="gui_box">
-                <div class="gui_box_titlebar"><div>What it shows</div></div>
-                <ul>
+                </ul></div></div></div>
+            <div class="rf-section"><div class="container"><div class="header"><span class="title">What it shows</span></div><div class="content"><ul>
                     <li>Each value next to its firmware default</li>
                     <li>Anything the file changed, highlighted</li>
                     <li>Enum names, ranges and types on hover</li>
                     <li>A searchable list of every value</li>
                     <li>The original file, with line numbers</li>
-                </ul>
-            </div>
-            <div class="gui_box">
-                <div class="gui_box_titlebar"><div>Good to know</div></div>
-                <ul>
+                </ul></div></div></div>
+            <div class="rf-section"><div class="container"><div class="header"><span class="title">Good to know</span></div><div class="content"><ul>
                     <li>Read-only — it cannot flash or configure anything</li>
                     <li>Values are shown exactly as the CLI printed them</li>
                     <li id="db-note"></li>
-                </ul>
-            </div>
+                </ul></div></div></div>
         </div>
     </div>
 </div>
@@ -79,6 +70,7 @@
 
 <div id="drop">Drop a Rotorflight CLI file to view it</div>
 
+<script src="data/labels-2.3.js"></script>
 <script src="data/rf-4.5.js"></script>
 <script src="data/rf-4.6.js"></script>
 <script src="js/parser.js"></script>

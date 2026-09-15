@@ -128,6 +128,19 @@ number of settings in scaled integer units (for instance `vbat_full_cell_voltage
 not, because guessing a scale factor would silently produce wrong numbers. A unit
 is shown only where the setting's own name states one (`*_hz`, `*_ms`, `*_kb`).
 
+## How closely it follows the Configurator
+
+The viewer reproduces the Configurator 2.3 layout language rather than
+approximating it: its colour tokens, its section cards with a dark header, and
+its field rows — label on the left, a read-only control on the right, the unit in
+orange after the label. `tools/gen_labels.py` takes the Configurator's own label,
+unit and section heading for each setting straight from its tab sources and
+English locale, so where it has a name for a setting, that is the name you see.
+
+Where it has no label for a setting, the viewer falls back to a readable form of
+the CLI name, and the CLI name is shown under every label either way so a value
+can always be traced back to the line it came from.
+
 ## Where the setting metadata comes from
 
 Setting names, scopes, types, ranges, enum values and factory defaults are
@@ -204,6 +217,12 @@ tools/selftest.js         parser and metadata checks
 samples/                  example files
 ```
 
+## Licence
+
+GPL-3.0, because it contains material derived from the Rotorflight Configurator
+and firmware, both GPL-3.0. `NOTICE` says exactly what is derived and from where.
+Not affiliated with or endorsed by the Rotorflight project.
+
 ## Known limitations
 
 - OSD element positions are shown as raw packed values; there is no OSD preview.
@@ -213,6 +232,12 @@ samples/                  example files
   annotations the CLI prints alongside them; they are not validated against a
   target definition.
 - Settings whose default is target-specific are reported as unknown.
+- Not every setting has a Configurator label yet; those fall back to a readable
+  form of the CLI name. Re-run `tools/gen_labels.py` after a Configurator
+  release to pick up more.
+- The Configurator's richer per-tab widgets — the swashplate diagram, rate
+  curves, channel bars, the throttle curve — are not reproduced; this is a
+  viewer, not a tuning surface.
 - There is no iOS app. Apple only allows browser engines and app installs through
   Xcode and the App Store, so the single-file HTML is the iPhone answer; "Add to
   Home Screen" from Safari gives it an icon.

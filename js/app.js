@@ -117,8 +117,45 @@
 
     // --------------------------------------------------------- row builder
 
-    /* One setting row. `present` is the parsed entry (null when the file left
-     * the setting at its default, which is the normal case in a `diff`). */
+    /* The read-only control a value is shown in. The Configurator puts every
+     * setting in a real widget rather than in text, and which widget it is says
+     * something about the setting, so the viewer picks the same way: a dropdown
+     * for an enum, a checkbox for a switch, a number box for the rest. */
+    function controlFor(name, m, shown) {
+        if (shown === null || shown === undefined) {
+            var none = el('input', 'value');
+            none.type = 'text';
+            none.value = '—';
+            none.disabled = true;
+            return none;
+        }
+
+        if (m && m.lut && isNaN(Number(shown))) {
+            var sel = el('select');
+            sel.appendChild(el('option', null, shown));
+            sel.disabled = true;
+            return sel;
+        }
+
+        if (shown === 'ON' || shown === 'OFF') {
+            var box = el('input');
+            box.type = 'checkbox';
+            box.checked = shown === 'ON';
+            box.disabled = true;
+            box.setAttribute('aria-label', shown);
+            return box;
+        }
+
+        var input = el('input', 'value' + (String(shown).length > 12 ? ' wide' : ''));
+        input.type = 'text';
+        input.value = shown;
+        input.disabled = true;
+        return input;
+    }
+
+    /* One setting, as a Field row: label on the left, control on the right,
+     * unit after the label. `present` is the parsed entry, or null when the
+     * file left the setting at its default - the normal case in a `diff`. */
     function settingRow(name, present) {
         var m = meta(name);
         var label = S.prettify(name);
@@ -128,47 +165,41 @@
         var def = defaultDisplay(name);
         var known = !!m;
         var changed = !!present && def !== null && shown !== def;
-        var atDefault = !present && def !== null;
 
         if (state.onlyChanged && !changed) { return null; }
 
-        var row = el('div', 'setting' +
-            (shown !== null && String(shown).length > 26 ? ' wide' : '') +
-            (changed ? ' is-changed' : '') +
-            (atDefault ? ' is-default' : '') +
-            (!known ? ' is-unknown' : ''));
+        var field = el('div', 'field' + (changed ? ' is-changed' : ''));
+        var content = el('div', 'content');
 
-        var lab = el('div', 'label');
-        lab.appendChild(el('span', 'text', label));
-        lab.appendChild(el('span', 'name', name));
-        row.appendChild(lab);
+        var lab = el('label');
+        var text = el('span', 'field-label');
+        text.appendChild(document.createTextNode(label));
+        text.appendChild(el('span', 'cli-name', name));
+        lab.appendChild(text);
 
-        var val = el('div', 'value');
-        if (shown === null || shown === undefined) {
-            val.appendChild(el('span', 'enum', '—'));
-        } else if (m && m.lut && isNaN(Number(shown))) {
-            val.appendChild(el('span', 'enum', shown));
-        } else {
-            val.appendChild(document.createTextNode(shown));
-        }
         var unit = known ? S.unitFor(name) : '';
-        if (unit && shown !== null) { val.appendChild(el('span', 'unit', unit)); }
-        row.appendChild(val);
+        if (unit) { lab.appendChild(el('span', 'units', '[ ' + unit + ' ]')); }
+        content.appendChild(lab);
 
-        var d = el('div', 'default');
+        var control = el('div', 'control');
+        control.appendChild(controlFor(name, m, shown));
+
+        var d = el('span', 'default');
         if (!known) {
             d.textContent = 'not in metadata';
         } else if (def === null) {
-            d.textContent = 'default unknown';
+            d.textContent = 'default ?';
         } else if (changed) {
-            d.textContent = 'default ' + def;
+            d.textContent = 'was ' + def;
         } else {
             d.textContent = 'default';
         }
-        row.appendChild(d);
+        control.appendChild(d);
+        content.appendChild(control);
 
-        row.title = rowTooltip(name, m, present);
-        return row;
+        field.appendChild(content);
+        field.title = rowTooltip(name, m, present);
+        return field;
     }
 
     function rowTooltip(name, m, present) {
@@ -203,16 +234,19 @@
     }
 
     function panel(title, hint) {
-        var box = el('div', 'gui_box');
-        var bar = el('div', 'gui_box_titlebar');
-        bar.appendChild(el('div', null, title));
-        if (hint) { bar.appendChild(el('div', 'hint', hint)); }
-        box.appendChild(bar);
-        box.appendChild(el('div', 'spacer_box'));
-        return box;
+        var section = el('div', 'rf-section');
+        var container = el('div', 'container');
+        var header = el('div', 'header');
+        header.appendChild(el('span', 'title', title));
+        header.appendChild(el('span', 'grow'));
+        if (hint) { header.appendChild(el('span', 'hint', hint)); }
+        container.appendChild(header);
+        container.appendChild(el('div', 'content'));
+        section.appendChild(container);
+        return section;
     }
 
-    function panelBody(box) { return box.lastChild; }
+    function panelBody(section) { return section.firstChild.lastChild; }
 
     // ------------------------------------------------------ tab inventory
 
@@ -277,7 +311,7 @@
 
         if (scope !== 'master') { frag.appendChild(profileBar(scope)); }
 
-        var grid = el('div', 'grid');
+        var grid = el('div', 'columns');
         var rendered = 0;
         var seen = {};
 
@@ -330,9 +364,9 @@
     }
 
     function profileBar(kind) {
-        var bar = el('div', 'pillbar');
+        var bar = el('div', 'profile-tabs');
         var isRate = kind === 'rateprofile';
-        bar.appendChild(el('span', 'lbl', isRate ? 'Rate profile' : 'PID profile'));
+        bar.appendChild(el('span', 'lbl', isRate ? 'Rate profile' : 'Profile'));
 
         var sections = isRate ? state.parsed.rateProfiles : state.parsed.profiles;
         var active = isRate ? state.parsed.activeRateProfile : state.parsed.activeProfile;
@@ -341,8 +375,10 @@
         for (var i = 0; i < 6; i++) {
             (function (n) {
                 var has = sections[n] && Object.keys(sections[n]).length;
-                var p = el('div', 'pill' + (n === current ? ' active' : '') + (has ? '' : ' dim'));
-                p.appendChild(document.createTextNode(String(n)));
+                var p = el('div', 'profile-tab' + (n === current ? ' active' : '') +
+                    (has ? '' : ' dim'));
+                p.appendChild(document.createTextNode(
+                    (isRate ? 'Rate #' : 'Profile #') + (n + 1)));
                 if (n === active) { p.appendChild(el('span', 'tag', 'selected')); }
                 p.title = has ? (Object.keys(sections[n]).length + ' values in file')
                               : 'no values in file (all at default)';
@@ -404,7 +440,7 @@
     function renderSetup() {
         var p = state.parsed;
         var frag = document.createDocumentFragment();
-        var grid = el('div', 'grid');
+        var grid = el('div', 'columns');
 
         var fw = panel('Firmware');
         var fwb = panelBody(fw);
@@ -439,14 +475,21 @@
             ftb.appendChild(el('div', 'empty-note', 'No feature changes in this file.'));
         } else {
             p.features.forEach(function (f) {
-                var row = el('div', 'setting' + (f.enabled ? '' : ' is-default'));
-                var lab = el('div', 'label');
-                lab.appendChild(el('span', 'text', f.name));
-                row.appendChild(lab);
-                var v = el('div', 'value');
-                v.appendChild(el('span', 'enum', f.enabled ? 'ENABLED' : 'DISABLED'));
-                row.appendChild(v);
-                ftb.appendChild(row);
+                var field = el('div', 'field');
+                var content = el('div', 'content');
+                var lab = el('label');
+                lab.appendChild(el('span', 'field-label', f.name));
+                content.appendChild(lab);
+                var control = el('div', 'control');
+                var box = el('input');
+                box.type = 'checkbox';
+                box.checked = f.enabled;
+                box.disabled = true;
+                control.appendChild(box);
+                control.appendChild(el('span', 'default', f.enabled ? 'enabled' : 'disabled'));
+                content.appendChild(control);
+                field.appendChild(content);
+                ftb.appendChild(field);
             });
         }
         grid.appendChild(ft);
@@ -475,12 +518,20 @@
     }
 
     function infoRow(label, value) {
-        var row = el('div', 'setting');
-        var lab = el('div', 'label');
-        lab.appendChild(el('span', 'text', label));
-        row.appendChild(lab);
-        row.appendChild(el('div', 'value', value === null || value === undefined ? '—' : value));
-        return row;
+        var field = el('div', 'field');
+        var content = el('div', 'content');
+        var lab = el('label');
+        lab.appendChild(el('span', 'field-label', label));
+        content.appendChild(lab);
+        var control = el('div', 'control');
+        var input = el('input', 'value wide');
+        input.type = 'text';
+        input.value = value === null || value === undefined ? '—' : String(value);
+        input.disabled = true;
+        control.appendChild(input);
+        content.appendChild(control);
+        field.appendChild(content);
+        return field;
     }
 
     // ------------------------------------------------------------ ports tab

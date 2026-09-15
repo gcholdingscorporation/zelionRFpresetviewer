@@ -465,7 +465,15 @@
         vbat: 'Voltage', vtx: 'VTX'
     };
 
+    /* The Configurator's own label for this setting, where it has one. */
+    function configuratorLabel(name) {
+        var table = global.RF_LABELS;
+        return table && table[name] ? table[name] : null;
+    }
+
     function prettify(name) {
+        var real = configuratorLabel(name);
+        if (real && real.l) { return real.l; }
         if (LABELS[name]) { return LABELS[name]; }
         var words = name.split('_');
         var out = words.map(function (w, i) {
@@ -479,6 +487,8 @@
     /* A unit is only shown when the setting name itself states one, so the
      * viewer never invents a scale it cannot verify. */
     function unitFor(name) {
+        var real = configuratorLabel(name);
+        if (real && real.u) { return real.u; }
         if (/_hz$/.test(name)) { return 'Hz'; }
         if (/_ms$/.test(name)) { return 'ms'; }
         if (/_us(ec)?$/.test(name)) { return 'us'; }
@@ -511,6 +521,7 @@
     }
 
     global.RFSchema = {
+        configuratorLabel: configuratorLabel,
         TABS: TABS,
         SECTIONS: SECTIONS,
         PG_TAB: PG_TAB,
