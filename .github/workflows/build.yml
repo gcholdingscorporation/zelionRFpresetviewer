@@ -64,10 +64,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # No setup-android step: the runner image already ships the SDK with its
+      # licences accepted, and the action asks sdkmanager for the long-removed
+      # "tools" package, which fails.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Show the SDK the runner provides
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools" || true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
