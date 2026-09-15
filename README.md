@@ -12,19 +12,31 @@ and shows you what is in it.
 
 ## Running it
 
-Three ways, none of which install anything.
+Four ways, none of which install a dependency.
 
-**Windows — `dist/RotorflightPresetViewer.exe`** (~300 KB). Double-click it. It
-imports only `kernel32`, `shell32` and `user32`, so it runs on any 64-bit Windows
-with no runtime, framework or bundled browser engine — there is deliberately no
-dependency on the Universal C Runtime. Dropping a CLI dump onto the .exe (or
-using *Open with*) opens the viewer with that file already loaded.
+**Windows — `dist/RotorflightPresetViewer.exe`** (~300 KB). Double-click it and
+the viewer opens in its own window, with no tabs or address bar. The window comes
+from Edge's application mode, so nothing extra is installed; if neither Edge nor
+Chrome is registered, the page opens in the default browser instead. The
+executable imports only `kernel32`, `shell32`, `user32` and `advapi32` — all
+parts of Windows — so there is no runtime, no framework, no bundled browser
+engine, and deliberately no dependency on the Universal C Runtime. Dropping a CLI
+dump onto the .exe, or using *Open with*, opens the viewer with that file already
+loaded.
 
-**Phone or tablet — `dist/rotorflight-preset-viewer.html`** (~295 KB). One file
-with everything embedded. Save it to your phone and open it from the Files app;
-Android and iOS both render it, and the layout switches to a single column with a
-slide-out tab drawer on narrow screens. It works with no signal — there is
-nothing to fetch.
+**Android — `RotorflightPresetViewer.apk`**. Built by CI (see below) because the
+Android SDK is needed. It declares **no permissions at all**: the viewer is
+inside the APK, so the app never touches the network. Open a dump through the
+app's own *Open file* button, or send one to it from a file manager or chat app
+with *Open with* / *Share*. Android 8.0 or newer. It is signed with the
+throwaway key in `android/sideload-debug.keystore`, so Android will ask you to
+allow installing from an unknown source.
+
+**Phone or tablet, no install — `dist/rotorflight-preset-viewer.html`** (~295 KB).
+One file with everything embedded. Save it to your phone and open it from the
+Files app; Android and iOS both render it, and the layout switches to a single
+column with a slide-out tab drawer on narrow screens. It works with no signal —
+there is nothing to fetch. This is the only option on iPhone.
 
 **From source** — no build step and no server:
 
@@ -46,7 +58,16 @@ text into the box on the start screen.
 ```
 python3 tools/build_single.py     # dist/rotorflight-preset-viewer.html
 python3 tools/build_windows.py    # dist/RotorflightPresetViewer.exe
+cd android && gradle assembleRelease   # needs the Android SDK
 ```
+
+All three carry the same page: `tools/build_single.py` produces it, and the .exe
+embeds it while the APK copies it into its assets, so the builds cannot drift
+apart.
+
+`.github/workflows/build.yml` builds the .exe and the .apk on every push and
+uploads both, and asserts that the .exe still imports nothing but Windows' own
+DLLs. Download them from the run's **Artifacts** section on the Actions tab.
 
 The Windows build cross-compiles from Linux or macOS and needs only
 `pip install ziglang` — Zig acts as a C compiler with a bundled mingw-w64, so
@@ -164,13 +185,6 @@ tools/selftest.js         parser and metadata checks
 samples/                  example files
 ```
 
-## Not built here
-
-There is no Android `.apk` or iOS build. The single-file HTML covers both
-platforms through the browser, and installs to the home screen as an app icon if
-you serve the directory over HTTPS (GitHub Pages will do). A native APK would
-need the Android SDK; ask if you want the project and a CI workflow for it.
-
 ## Known limitations
 
 - OSD element positions are shown as raw packed values; there is no OSD preview.
@@ -180,3 +194,9 @@ need the Android SDK; ask if you want the project and a CI workflow for it.
   annotations the CLI prints alongside them; they are not validated against a
   target definition.
 - Settings whose default is target-specific are reported as unknown.
+- There is no iOS app. Apple only allows browser engines and app installs through
+  Xcode and the App Store, so the single-file HTML is the iPhone answer; "Add to
+  Home Screen" from Safari gives it an icon.
+- The Android app relies on the system WebView, which updates itself through the
+  Play Store. A device whose WebView has not been updated in years may render the
+  layout poorly.
