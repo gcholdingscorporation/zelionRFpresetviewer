@@ -87,8 +87,64 @@ jobs:
           mkdir -p out
           cp android/app/build/outputs/apk/release/*.apk out/RotorflightPresetViewer.apk
           ls -la out
+
+      # Assert the properties the README claims, so they cannot quietly stop
+      # being true.
+      - name: Check the APK
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "using $BUILD_TOOLS"
+
+          echo '--- badging ---'
+          "$BUILD_TOOLS/aapt2" dump badging out/RotorflightPresetViewer.apk | tee badging.txt
+
+          echo '--- it must request no permissions ---'
+          if grep -q "uses-permission" badging.txt; then
+            echo 'FAIL: the APK requests permissions'
+            exit 1
+          fi
+
+          echo '--- the viewer must be bundled ---'
+          SIZE="$(unzip -p out/RotorflightPresetViewer.apk assets/viewer.html | wc -c)"
+          echo "assets/viewer.html is $SIZE bytes"
+          test "$SIZE" -gt 200000
+          unzip -p out/RotorflightPresetViewer.apk assets/viewer.html \
+            | grep -q 'Rotorflight Preset Viewer'
+
+          echo '--- signature ---'
+          "$BUILD_TOOLS/apksigner" verify --print-certs out/RotorflightPresetViewer.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: RotorflightPresetViewer-android
           path: out/RotorflightPresetViewer.apk
           if-no-files-found: error
+
+  publish-apk:
+    name: commit the APK next to the .exe
+    needs: android-apk
+    runs-on: ubuntu-latest
+    # The Android SDK is not available everywhere this project is developed, so
+    # the built APK is committed to dist/ to sit alongside the .exe. A push that
+    # only touches dist/ is ignored by the trigger above, so this cannot loop.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: RotorflightPresetViewer-android
+          path: dist
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dist/RotorflightPresetViewer.apk
+          if git diff --cached --quiet; then
+            echo 'APK unchanged'
+            exit 0
+          fi
+          git commit -m 'CI: publish the Android APK [skip ci]'
+          git push origin HEAD:"${GITHUB_REF_NAME}"
