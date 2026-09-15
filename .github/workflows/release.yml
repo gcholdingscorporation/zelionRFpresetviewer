@@ -122,7 +122,15 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          FW="$(ls data/rf-*.js | sed 's#.*rf-##; s#\.js##' | paste -sd ' and ')"
+          # paste -d takes single characters, so it cannot join with " and ".
+          FW="$(python3 - <<'VERSIONS'
+          import glob, re
+          found = sorted(re.search(r'rf-(.+)\.js$', p).group(1)
+                         for p in glob.glob('data/rf-*.js'))
+          print(' and '.join(found) if len(found) < 3
+                else ', '.join(found[:-1]) + ' and ' + found[-1])
+          VERSIONS
+          )"
 
           cat > notes.md <<NOTES
           A read-only viewer for Rotorflight CLI files. Load a \`dump all\`, a
