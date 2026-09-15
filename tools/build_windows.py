@@ -87,6 +87,11 @@ def main():
         sys.stderr.write(result.stdout + result.stderr)
         raise SystemExit('link failed')
     os.remove(obj)
+    # The linker drops debug symbols next to the binary; they are not part of
+    # the distributable.
+    pdb = os.path.splitext(OUT)[0] + '.pdb'
+    if os.path.exists(pdb):
+        os.remove(pdb)
 
     size = os.path.getsize(OUT)
     print('wrote %s (%.1f MB)' % (OUT, size / (1024.0 * 1024.0)))
