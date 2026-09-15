@@ -131,19 +131,18 @@
         }
 
         if (m && m.lut && isNaN(Number(shown))) {
-            var sel = el('select');
+            var sel = el('select', 'value');
             sel.appendChild(el('option', null, shown));
             sel.disabled = true;
             return sel;
         }
 
         if (shown === 'ON' || shown === 'OFF') {
-            var box = el('input');
-            box.type = 'checkbox';
-            box.checked = shown === 'ON';
-            box.disabled = true;
-            box.setAttribute('aria-label', shown);
-            return box;
+            var sw = el('div', 'switch' + (shown === 'ON' ? ' on' : ''));
+            sw.setAttribute('role', 'img');
+            sw.setAttribute('aria-label', shown);
+            sw.title = shown;
+            return sw;
         }
 
         var input = el('input', 'value' + (String(shown).length > 12 ? ' wide' : ''));
@@ -153,9 +152,10 @@
         return input;
     }
 
-    /* One setting, as a Field row: label on the left, control on the right,
-     * unit after the label. `present` is the parsed entry, or null when the
-     * file left the setting at its default - the normal case in a `diff`. */
+    /* One setting, as a Configurator settings row: the control in the first
+     * cell, the label in the second, then what the file changed it from and a
+     * help icon. `present` is the parsed entry, or null when the file left the
+     * setting at its default - the normal case in a `diff`. */
     function settingRow(name, present) {
         var m = meta(name);
         var label = S.prettify(name);
@@ -168,38 +168,36 @@
 
         if (state.onlyChanged && !changed) { return null; }
 
-        var field = el('div', 'field' + (changed ? ' is-changed' : ''));
-        var content = el('div', 'content');
+        var row = el('tr', changed ? 'is-changed' : null);
 
-        var lab = el('label');
-        var text = el('span', 'field-label');
-        text.appendChild(document.createTextNode(label));
-        text.appendChild(el('span', 'cli-name', name));
-        lab.appendChild(text);
-
-        var unit = known ? S.unitFor(name) : '';
-        if (unit) { lab.appendChild(el('span', 'units', '[ ' + unit + ' ]')); }
-        content.appendChild(lab);
-
-        var control = el('div', 'control');
+        var control = el('td', 'control');
         control.appendChild(controlFor(name, m, shown));
+        row.appendChild(control);
 
-        var d = el('span', 'default');
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(label));
+        var unit = known ? S.unitFor(name) : '';
+        if (unit) { lab.appendChild(el('span', 'units', '[' + unit + ']')); }
+        lab.appendChild(el('span', 'cli-name', name));
+        row.appendChild(lab);
+
+        var was = el('td', 'was');
         if (!known) {
-            d.textContent = 'not in metadata';
+            was.textContent = 'not in metadata';
         } else if (def === null) {
-            d.textContent = 'default ?';
+            was.textContent = 'default ?';
         } else if (changed) {
-            d.textContent = 'was ' + def;
-        } else {
-            d.textContent = 'default';
+            was.textContent = 'was ' + def;
         }
-        control.appendChild(d);
-        content.appendChild(control);
+        row.appendChild(was);
 
-        field.appendChild(content);
-        field.title = rowTooltip(name, m, present);
-        return field;
+        var help = el('td', 'help');
+        var icon = el('div', 'helpicon', '?');
+        icon.title = rowTooltip(name, m, present);
+        help.appendChild(icon);
+        row.appendChild(help);
+
+        return row;
     }
 
     function rowTooltip(name, m, present) {
@@ -234,19 +232,30 @@
     }
 
     function panel(title, hint) {
-        var section = el('div', 'rf-section');
-        var container = el('div', 'container');
-        var header = el('div', 'header');
-        header.appendChild(el('span', 'title', title));
-        header.appendChild(el('span', 'grow'));
-        if (hint) { header.appendChild(el('span', 'hint', hint)); }
-        container.appendChild(header);
-        container.appendChild(el('div', 'content'));
-        section.appendChild(container);
-        return section;
+        var box = el('div', 'gui_box');
+        var bar = el('div', 'gui_box_titlebar');
+        bar.appendChild(el('div', 'spacer_box_title', title));
+        bar.appendChild(el('div', 'grow'));
+        if (hint) { bar.appendChild(el('div', 'hint', hint)); }
+        box.appendChild(bar);
+        box.appendChild(el('div', 'spacer_box'));
+        return box;
     }
 
-    function panelBody(section) { return section.firstChild.lastChild; }
+    /* The box's free-form area, for the panels that hold a table of their own. */
+    function panelBody(box) { return box.lastChild; }
+
+    /* The box's settings table. Rows put the control on the left and the label
+     * on the right, which is how a Configurator settings row is built. */
+    function settingsTable(box) {
+        var body = panelBody(box);
+        if (!body.firstChild) {
+            var table = el('table', 'settings_table');
+            table.appendChild(el('tbody'));
+            body.appendChild(table);
+        }
+        return body.firstChild.firstChild;
+    }
 
     // ------------------------------------------------------ tab inventory
 
@@ -312,6 +321,10 @@
         if (scope !== 'master') { frag.appendChild(profileBar(scope)); }
 
         var grid = el('div', 'columns');
+        if (tabId === 'profiles' && !state.filter && !state.onlyChanged) {
+            var matrix = pidMatrix();
+            if (matrix) { grid.appendChild(matrix); rendered = 1; }
+        }
         var rendered = 0;
         var seen = {};
 
@@ -323,7 +336,7 @@
 
             var box = panel(sec.title, secScope === 'master' ? '' :
                 (secScope === 'profile' ? 'profile ' + secIndex : 'rateprofile ' + secIndex));
-            var body = panelBody(box);
+            var body = settingsTable(box);
             var n = 0;
             sec.names.forEach(function (name) {
                 if (seen[name]) { return; }
@@ -337,7 +350,7 @@
 
         leftoverGroups(tabId).forEach(function (g) {
             var box = panel(S.pgTitle(g.pg), g.pg === 'UNKNOWN' ? 'unrecognised' : '');
-            var body = panelBody(box);
+            var body = settingsTable(box);
             var n = 0;
             g.names.forEach(function (name) {
                 var m = meta(name);
@@ -364,9 +377,8 @@
     }
 
     function profileBar(kind) {
-        var bar = el('div', 'profile-tabs');
+        var bar = el('div', 'tab-container');
         var isRate = kind === 'rateprofile';
-        bar.appendChild(el('span', 'lbl', isRate ? 'Rate profile' : 'Profile'));
 
         var sections = isRate ? state.parsed.rateProfiles : state.parsed.profiles;
         var active = isRate ? state.parsed.activeRateProfile : state.parsed.activeProfile;
@@ -375,7 +387,7 @@
         for (var i = 0; i < 6; i++) {
             (function (n) {
                 var has = sections[n] && Object.keys(sections[n]).length;
-                var p = el('div', 'profile-tab' + (n === current ? ' active' : '') +
+                var p = el('div', (n === current ? 'active' : '') +
                     (has ? '' : ' dim'));
                 p.appendChild(document.createTextNode(
                     (isRate ? 'Rate #' : 'Profile #') + (n + 1)));
@@ -443,7 +455,7 @@
         var grid = el('div', 'columns');
 
         var fw = panel('Firmware');
-        var fwb = panelBody(fw);
+        var fwb = settingsTable(fw);
         [['File', state.fileName || '(pasted text)'],
          ['Content', p.kind === 'diff' ? 'diff all (only non-default values)'
                     : p.kind === 'dump' ? 'dump all (complete configuration)'
@@ -458,7 +470,7 @@
         grid.appendChild(fw);
 
         var bd = panel('Board');
-        var bdb = panelBody(bd);
+        var bdb = settingsTable(bd);
         [['Craft name', p.header.craftName || (p.master.name && p.master.name.raw) || '—'],
          ['Target', p.header.mcuTarget || '—'],
          ['Board name', p.header.board_name || '—'],
@@ -470,32 +482,25 @@
         grid.appendChild(bd);
 
         var ft = panel('Features', p.features.length + ' changed');
-        var ftb = panelBody(ft);
+        var ftb = settingsTable(ft);
         if (!p.features.length) {
             ftb.appendChild(el('div', 'empty-note', 'No feature changes in this file.'));
         } else {
             p.features.forEach(function (f) {
-                var field = el('div', 'field');
-                var content = el('div', 'content');
-                var lab = el('label');
-                lab.appendChild(el('span', 'field-label', f.name));
-                content.appendChild(lab);
-                var control = el('div', 'control');
-                var box = el('input');
-                box.type = 'checkbox';
-                box.checked = f.enabled;
-                box.disabled = true;
-                control.appendChild(box);
-                control.appendChild(el('span', 'default', f.enabled ? 'enabled' : 'disabled'));
-                content.appendChild(control);
-                field.appendChild(content);
-                ftb.appendChild(field);
+                var row = el('tr');
+                var control = el('td', 'control');
+                var sw = el('div', 'switch' + (f.enabled ? ' on' : ''));
+                sw.title = f.enabled ? 'enabled' : 'disabled';
+                control.appendChild(sw);
+                row.appendChild(control);
+                row.appendChild(el('td', 'label', f.name));
+                ftb.appendChild(row);
             });
         }
         grid.appendChild(ft);
 
         var st = panel('Contents');
-        var stb = panelBody(st);
+        var stb = settingsTable(st);
         var profileCount = Object.keys(p.profiles).length;
         var rateCount = Object.keys(p.rateProfiles).length;
         [['set statements', p.setCount],
@@ -518,20 +523,16 @@
     }
 
     function infoRow(label, value) {
-        var field = el('div', 'field');
-        var content = el('div', 'content');
-        var lab = el('label');
-        lab.appendChild(el('span', 'field-label', label));
-        content.appendChild(lab);
-        var control = el('div', 'control');
+        var row = el('tr');
+        var control = el('td', 'control');
         var input = el('input', 'value wide');
         input.type = 'text';
         input.value = value === null || value === undefined ? '—' : String(value);
         input.disabled = true;
         control.appendChild(input);
-        content.appendChild(control);
-        field.appendChild(content);
-        return field;
+        row.appendChild(control);
+        row.appendChild(el('td', 'label', label));
+        return row;
     }
 
     // ------------------------------------------------------------ ports tab
@@ -864,6 +865,69 @@
 
     // ------------------------------------------------------------- chrome
 
+    /* The Configurator leads its Profiles tab with a matrix: a row per axis,
+     * colour-coded, and a column per PID term. It is the most recognisable
+     * thing on the tab, so the viewer builds the same one. */
+    var PID_TERMS = [
+        { key: 'p', head: 'Proportional' },
+        { key: 'i', head: 'Integral' },
+        { key: 'd', head: 'Derivative' },
+        { key: 'f', head: 'Feedforward' },
+        { key: 'b', head: 'Boost' },
+        { key: 'o', head: 'Offset' }
+    ];
+
+    var PID_AXES = ['ROLL', 'PITCH', 'YAW'];
+
+    function pidMatrix() {
+        var index = state.profile;
+        var terms = PID_TERMS.filter(function (t) {
+            return PID_AXES.some(function (axis) {
+                return !!meta(axis.toLowerCase() + '_' + t.key + '_gain');
+            });
+        });
+        if (!terms.length) { return null; }
+
+        var box = panel('PID Controller Gains', 'profile ' + index);
+        var table = el('table', 'pid_table');
+
+        var head = el('tr', 'pid_titlebar');
+        head.appendChild(el('th', null, 'Axis'));
+        terms.forEach(function (t) { head.appendChild(el('th', null, t.head)); });
+        var thead = el('thead');
+        thead.appendChild(head);
+        table.appendChild(thead);
+
+        var body = el('tbody');
+        PID_AXES.forEach(function (axis) {
+            var row = el('tr', axis);
+            row.appendChild(el('td', 'axis_title', axis));
+            terms.forEach(function (t) {
+                var name = axis.toLowerCase() + '_' + t.key + '_gain';
+                var cell = el('td', 'pid_data');
+                if (!meta(name)) { row.appendChild(cell); return; }
+
+                var present = entryFor(name, 'profile', index);
+                var shown = present ? valueDisplay(present) : defaultDisplay(name);
+                var def = defaultDisplay(name);
+                if (present && def !== null && shown !== def) {
+                    cell.className = 'pid_data is-changed';
+                }
+                var input = el('input', 'value');
+                input.type = 'text';
+                input.value = shown === null ? '\u2014' : shown;
+                input.disabled = true;
+                input.title = rowTooltip(name, meta(name), present);
+                cell.appendChild(input);
+                row.appendChild(cell);
+            });
+            body.appendChild(row);
+        });
+        table.appendChild(body);
+        panelBody(box).appendChild(table);
+        return box;
+    }
+
     var RENDERERS = {
         setup: renderSetup,
         ports: renderPorts,
@@ -943,18 +1007,30 @@
         var meta$ = clear($('#filemeta'));
         if (!state.parsed) { return; }
         var p = state.parsed;
-        meta$.appendChild(el('span', 'chip kind-' + p.kind, p.kind));
-        function kv(k, v) {
-            var s = el('span');
-            s.appendChild(document.createTextNode(k + ' '));
-            s.appendChild(el('b', null, v));
-            return s;
+        function line(label, value) {
+            var row = el('div');
+            row.appendChild(document.createTextNode(label + ': '));
+            row.appendChild(el('b', null, value));
+            return row;
         }
-        meta$.appendChild(kv('file', state.fileName || 'pasted'));
-        if (p.header.craftName) { meta$.appendChild(kv('craft', p.header.craftName)); }
-        if (p.header.version) { meta$.appendChild(kv('fw', p.header.version)); }
-        if (p.header.board_name) { meta$.appendChild(kv('board', p.header.board_name)); }
-        meta$.appendChild(kv('metadata', state.dbKey || 'none'));
+
+        var first = el('div');
+        first.appendChild(el('span', 'chip kind-' + p.kind, p.kind));
+        first.appendChild(document.createTextNode(' ' + (state.fileName || 'pasted text')));
+        meta$.appendChild(first);
+        meta$.appendChild(line('Firmware', (p.header.version || 'unknown') +
+            (p.header.firmware ? ' ' + p.header.firmware : '')));
+        meta$.appendChild(line('Target', (p.header.board_name || '?') +
+            (p.header.mcuTarget ? '(' + p.header.mcuTarget + ')' : '')));
+
+        var status = $('#statustext');
+        if (status) {
+            status.textContent = (p.header.craftName ? p.header.craftName + ' \u2014 ' : '') +
+                p.setCount + ' settings, ' +
+                Object.keys(p.profiles).length + ' profiles, ' +
+                Object.keys(p.rateProfiles).length + ' rate profiles \u2014 ' +
+                'read with Rotorflight ' + (state.dbKey || '?') + ' metadata';
+        }
     }
 
     function renderToolbar(host) {

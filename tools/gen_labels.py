@@ -22,6 +22,7 @@ back to its own label for those.
 The Configurator is GPL-3.0; see LICENSE and NOTICE.
 """
 
+import html
 import json
 import os
 import re
@@ -37,8 +38,9 @@ def load_messages(cfg):
         message = value.get('message')
         if not message:
             continue
-        # Locale strings carry markup and placeholders; neither belongs in a label.
+        # Locale strings carry markup, HTML entities and placeholders.
         text = re.sub(r'<[^>]+>', '', message)
+        text = html.unescape(text)
         text = re.sub(r'\s+', ' ', text).strip()
         if text and '{{' not in text:
             out[key] = text
