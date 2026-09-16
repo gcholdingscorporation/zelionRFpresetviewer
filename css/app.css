@@ -677,3 +677,15 @@ td.label span.dim {
 /* The profile the Configurator highlights as the one in use. */
 tr.is-active td.control input { background: var(--accent); color: #fff; font-weight: bold; }
 tr.is-active td.label { font-weight: bold; }
+
+/* RPM filter notches: a switch, then the Q or type it carries. */
+.notch-axis {
+    font-weight: bold;
+    padding: 5px 8px;
+    margin-top: 6px;
+    color: #000;
+}
+.notch-axis.axis-roll  { background: #FF8080; }
+.notch-axis.axis-pitch { background: #80FF80; }
+.notch-axis.axis-yaw   { background: #8080FF; }
+tr.is-off td.control input { color: var(--quietHeader); }

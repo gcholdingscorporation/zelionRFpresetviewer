@@ -188,8 +188,8 @@ check('schema: pitch_p_gain shows on the PID Profiles tab',
       S.tabFor('pitch_p_gain', db45.settings.pitch_p_gain), 'profiles');
 check('schema: roll_rc_rate shows on the Rates tab',
       S.tabFor('roll_rc_rate', db45.settings.roll_rc_rate), 'rates');
-check('schema: gyro_lpf1_static_hz shows on the Filters tab',
-      S.tabFor('gyro_lpf1_static_hz', db45.settings.gyro_lpf1_static_hz), 'filters');
+check('schema: gyro_lpf1_static_hz shows on the Gyro tab',
+      S.tabFor('gyro_lpf1_static_hz', db45.settings.gyro_lpf1_static_hz), 'gyro');
 
 // Every curated panel must name a real tab, or its settings would vanish.
 const tabIds = new Set(S.TABS.map(t => t.id));

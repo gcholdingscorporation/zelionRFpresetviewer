@@ -15,26 +15,30 @@
     'use strict';
 
     var TABS = [
+        /* The Configurator 2.3's own rail, in its own order. The tabs after
+         * the divider are the viewer's: they hold settings the Configurator
+         * either reaches from somewhere else or leaves to the CLI, and they
+         * are kept so that nothing in a file goes unshown. */
         { id: 'setup', name: 'Setup', icon: 'setup' },
         { id: 'configuration', name: 'Configuration', icon: 'config' },
-        { id: 'ports', name: 'Ports', icon: 'ports' },
         { id: 'receiver', name: 'Receiver', icon: 'rx' },
-        { id: 'modes', name: 'Modes', icon: 'modes' },
-        { id: 'adjustments', name: 'Adjustments', icon: 'adjust' },
         { id: 'failsafe', name: 'Failsafe', icon: 'failsafe' },
         { id: 'power', name: 'Power', icon: 'power' },
         { id: 'motors', name: 'Motors', icon: 'motor' },
         { id: 'governor', name: 'Governor', icon: 'governor' },
         { id: 'servos', name: 'Servos', icon: 'servo' },
         { id: 'mixer', name: 'Mixer', icon: 'mixer' },
-        { id: 'filters', name: 'Filters', icon: 'gyro' },
+        { id: 'gyro', name: 'Gyro', icon: 'gyro' },
         { id: 'rates', name: 'Rates', icon: 'rates' },
-        { id: 'profiles', name: 'PID Profiles', icon: 'pid' },
-        { id: 'rescue', name: 'Rescue', icon: 'rescue' },
-        { id: 'blackbox', name: 'Blackbox', icon: 'data' },
-        { id: 'osd', name: 'OSD', icon: 'osd' },
+        { id: 'profiles', name: 'Profiles', icon: 'pid' },
+        { id: 'modes', name: 'Modes', icon: 'modes' },
+        { id: 'adjustments', name: 'Adjustments', icon: 'adjust' },
         { id: 'ledstrip', name: 'LED Strip', icon: 'led' },
         { id: 'beepers', name: 'Beepers', icon: 'beeper' },
+        { id: 'blackbox', name: 'Blackbox', icon: 'data' },
+        { id: 'ports', name: 'Ports', icon: 'ports' },
+        { id: 'rescue', name: 'Rescue', icon: 'rescue' },
+        { id: 'osd', name: 'OSD', icon: 'osd' },
         { id: 'gps', name: 'GPS', icon: 'gps' },
         { id: 'board', name: 'Board', icon: 'board' },
         { id: 'all', name: 'All Settings', icon: 'list' },
@@ -64,7 +68,7 @@
         PG_DISPLAY_PORT_MAX7456_CONFIG: 'osd',
         PG_DISPLAY_PORT_MSP_CONFIG: 'osd',
         PG_DRIVER_SBUS_OUT_CONFIG: 'board',
-        PG_DYN_NOTCH_CONFIG: 'filters',
+        PG_DYN_NOTCH_CONFIG: 'gyro',
         PG_ESC_SENSOR_CONFIG: 'motors',
         PG_FAILSAFE_CONFIG: 'failsafe',
         PG_FLASH_CONFIG: 'blackbox',
@@ -74,7 +78,7 @@
         PG_GOVERNOR_CONFIG: 'governor',
         PG_GPS_CONFIG: 'gps',
         PG_GPS_RESCUE: 'gps',
-        PG_GYRO_CONFIG: 'filters',
+        PG_GYRO_CONFIG: 'gyro',
         PG_GYRO_DEVICE_CONFIG: 'board',
         PG_I2C_CONFIG: 'board',
         PG_IMU_CONFIG: 'configuration',
@@ -96,7 +100,7 @@
         PG_RANGEFINDER_CONFIG: 'board',
         PG_RCDEVICE_CONFIG: 'board',
         PG_RC_CONTROLS_CONFIG: 'receiver',
-        PG_RPM_FILTER_CONFIG: 'filters',
+        PG_RPM_FILTER_CONFIG: 'gyro',
         PG_RX_CC2500_SPI_CONFIG: 'receiver',
         PG_RX_CONFIG: 'receiver',
         PG_RX_EXPRESSLRS_SPI_CONFIG: 'receiver',
@@ -125,7 +129,7 @@
         [/^rescue_/, 'rescue'],
         [/^gps_rescue_/, 'gps'],
         [/^(acro_trainer_|angle_level|horizon_)/, 'profiles'],
-        [/^gyro_rpm_notch_/, 'filters']
+        [/^gyro_rpm_notch_/, 'gyro']
     ];
 
     /* Curated panels, in the order the Configurator shows the equivalent boxes.
@@ -277,17 +281,17 @@
           names: ['collective_tilt_correction_pos', 'collective_tilt_correction_neg'] },
 
         // ---- Filters -------------------------------------------------------
-        { tab: 'filters', title: 'Gyro Lowpass 1',
+        { tab: 'gyro', title: 'Gyro Lowpass 1',
           names: ['gyro_lpf1_type', 'gyro_lpf1_static_hz',
                   'gyro_lpf1_dyn_min_hz', 'gyro_lpf1_dyn_max_hz'] },
-        { tab: 'filters', title: 'Gyro Lowpass 2',
+        { tab: 'gyro', title: 'Gyro Lowpass 2',
           names: ['gyro_lpf2_type', 'gyro_lpf2_static_hz'] },
-        { tab: 'filters', title: 'Gyro Notches',
+        { tab: 'gyro', title: 'Gyro Notches',
           names: ['gyro_notch1_hz', 'gyro_notch1_cutoff',
                   'gyro_notch2_hz', 'gyro_notch2_cutoff'] },
-        { tab: 'filters', title: 'Dynamic Notch',
+        { tab: 'gyro', title: 'Dynamic Notch',
           names: ['dyn_notch_count', 'dyn_notch_q', 'dyn_notch_min_hz', 'dyn_notch_max_hz'] },
-        { tab: 'filters', title: 'RPM Filter',
+        { tab: 'gyro', title: 'RPM Filter',
           names: ['gyro_rpm_notch_preset', 'gyro_rpm_notch_min_hz',
                   'gyro_rpm_notch_source_roll', 'gyro_rpm_notch_q_roll',
                   'gyro_rpm_notch_center_roll',
@@ -295,7 +299,7 @@
                   'gyro_rpm_notch_center_pitch',
                   'gyro_rpm_notch_source_yaw', 'gyro_rpm_notch_q_yaw',
                   'gyro_rpm_notch_center_yaw'] },
-        { tab: 'filters', title: 'Gyro Hardware',
+        { tab: 'gyro', title: 'Gyro Hardware',
           names: ['gyro_hardware_lpf', 'gyro_decimation_hz', 'gyro_rate_sync',
                   'gyro_to_use', 'gyro_high_range', 'gyro_overflow_detect',
                   'gyro_calib_duration', 'gyro_calib_noise_limit', 'gyro_offset_yaw'] },

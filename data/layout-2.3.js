@@ -19,6 +19,60 @@
 
 window.RF_LAYOUT = {
 
+    /* The Gyro tab, from src/tabs/gyro/*.svelte.
+     *
+     * Each filter here is switched on by a value rather than by a flag - a
+     * lowpass is on when its type is not NONE, a notch when both its
+     * frequency and cutoff are above zero - so the toggles name a predicate
+     * in app.js rather than a setting, and the settings under a toggle are
+     * hidden when it is off, as the Configurator hides them.
+     */
+    gyro: {
+        boxes: [
+            { title: 'Lowpass Filter', rows: [
+                { sub: 'Lowpass Filter 1' },
+                { toggle: 'lowpass1', label: 'Enable' },
+                { cli: 'gyro_lpf1_type', label: 'Filter Type', enum: 'lowpassFilterTypes', when: 'lowpass1' },
+                { cli: 'gyro_lpf1_static_hz', label: 'Cutoff Frequency', unit: 'Hz', when: 'lowpass1' },
+                { toggle: 'lowpass1Dyn', label: 'Dynamic Cutoff', when: 'lowpass1' },
+                { cli: 'gyro_lpf1_dyn_min_hz', label: 'Min Cutoff Frequency', unit: 'Hz', when: 'lowpass1Dyn' },
+                { cli: 'gyro_lpf1_dyn_max_hz', label: 'Max Cutoff Frequency', unit: 'Hz', when: 'lowpass1Dyn' },
+                { sub: 'Lowpass Filter 2' },
+                { toggle: 'lowpass2', label: 'Enable' },
+                { cli: 'gyro_lpf2_type', label: 'Filter Type', enum: 'lowpassFilterTypes', when: 'lowpass2' },
+                { cli: 'gyro_lpf2_static_hz', label: 'Cutoff Frequency', unit: 'Hz', when: 'lowpass2' }
+            ] },
+
+            { title: 'Notch Filter', rows: [
+                { sub: 'Notch Filter 1' },
+                { toggle: 'notch1', label: 'Enable' },
+                { cli: 'gyro_notch1_hz', label: 'Center Frequency', unit: 'Hz', when: 'notch1' },
+                { cli: 'gyro_notch1_cutoff', label: 'Cutoff Frequency', unit: 'Hz', when: 'notch1' },
+                { sub: 'Notch Filter 2' },
+                { toggle: 'notch2', label: 'Enable' },
+                { cli: 'gyro_notch2_hz', label: 'Center Frequency', unit: 'Hz', when: 'notch2' },
+                { cli: 'gyro_notch2_cutoff', label: 'Cutoff Frequency', unit: 'Hz', when: 'notch2' }
+            ] },
+
+            { title: 'Dynamic Filter', rows: [
+                { toggle: 'dynNotch', label: 'Enable' },
+                { cli: 'dyn_notch_count', label: 'Notch Count', when: 'dynNotch' },
+                { cli: 'dyn_notch_q', label: 'Notch Q', when: 'dynNotch' },
+                { cli: 'dyn_notch_min_hz', label: 'Notch Minimum Frequency', unit: 'Hz', when: 'dynNotch' },
+                { cli: 'dyn_notch_max_hz', label: 'Notch Maximum Frequency', unit: 'Hz', when: 'dynNotch' }
+            ] },
+
+            { title: 'RPM Filter', rows: [
+                { toggle: 'rpmFilter', label: 'Enable' },
+                { cli: 'gyro_rpm_notch_preset', label: 'Strength',
+                  enum: 'rpmFilterStrengths', when: 'rpmFilter' },
+                { cli: 'gyro_rpm_notch_min_hz', label: 'Minimum Frequency', unit: 'Hz', when: 'rpmFilter' }
+            ] },
+
+            { title: 'RPM Filter Notches', notches: true, when: 'rpmFilter', rows: [] }
+        ]
+    },
+
     /* The Power tab, from src/tabs/power.html and src/js/tabs/power.js.
      *
      * Power State and the live meter readings are telemetry; only the
@@ -388,6 +442,15 @@ window.RF_MIXER_INPUT_DEFAULTS = {
 window.RF_ENUM_LISTS = {
     /* src/js/tabs/power.js getBatteryMeterTypes()/getSmartFuelSourceTypes(),
      * with the entry API 12.9 adds. */
+    /* src/tabs/gyro/LowpassFilter.svelte FILTER_TYPES; only two are offered,
+     * but the firmware's table is longer, so the rest keep their own names. */
+    lowpassFilterTypes: [
+        'Disabled', '1ˢᵗ order', '2ⁿᵈ order',
+        'PT1', 'PT2', 'PT3', 'Order1', 'Butter', 'Bessel', 'Damped'
+    ],
+    /* src/tabs/gyro/RpmFilter.svelte filterStrengths. */
+    rpmFilterStrengths: ['Custom', 'Low', 'Medium', 'High'],
+
     batteryMeterTypes: ['None', 'Battery ADC', 'ESC Telemetry', 'FrSky Sensor'],
     smartFuelSourceTypes: ['Off', 'Voltage', 'Current', 'Combined'],
 

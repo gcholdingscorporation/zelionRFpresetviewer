@@ -687,6 +687,18 @@ td.label span.dim {
 tr.is-active td.control input { background: var(--accent); color: #fff; font-weight: bold; }
 tr.is-active td.label { font-weight: bold; }
 
+/* RPM filter notches: a switch, then the Q or type it carries. */
+.notch-axis {
+    font-weight: bold;
+    padding: 5px 8px;
+    margin-top: 6px;
+    color: #000;
+}
+.notch-axis.axis-roll  { background: #FF8080; }
+.notch-axis.axis-pitch { background: #80FF80; }
+.notch-axis.axis-yaw   { background: #8080FF; }
+tr.is-off td.control input { color: var(--quietHeader); }
+
 </style>
 </head>
 <body>
@@ -781,6 +793,60 @@ window.RF_LABELS = {"acc_trim_pitch":{"l":"Accelerometer Pitch Trim","s":"Accele
  */
 
 window.RF_LAYOUT = {
+
+    /* The Gyro tab, from src/tabs/gyro/*.svelte.
+     *
+     * Each filter here is switched on by a value rather than by a flag - a
+     * lowpass is on when its type is not NONE, a notch when both its
+     * frequency and cutoff are above zero - so the toggles name a predicate
+     * in app.js rather than a setting, and the settings under a toggle are
+     * hidden when it is off, as the Configurator hides them.
+     */
+    gyro: {
+        boxes: [
+            { title: 'Lowpass Filter', rows: [
+                { sub: 'Lowpass Filter 1' },
+                { toggle: 'lowpass1', label: 'Enable' },
+                { cli: 'gyro_lpf1_type', label: 'Filter Type', enum: 'lowpassFilterTypes', when: 'lowpass1' },
+                { cli: 'gyro_lpf1_static_hz', label: 'Cutoff Frequency', unit: 'Hz', when: 'lowpass1' },
+                { toggle: 'lowpass1Dyn', label: 'Dynamic Cutoff', when: 'lowpass1' },
+                { cli: 'gyro_lpf1_dyn_min_hz', label: 'Min Cutoff Frequency', unit: 'Hz', when: 'lowpass1Dyn' },
+                { cli: 'gyro_lpf1_dyn_max_hz', label: 'Max Cutoff Frequency', unit: 'Hz', when: 'lowpass1Dyn' },
+                { sub: 'Lowpass Filter 2' },
+                { toggle: 'lowpass2', label: 'Enable' },
+                { cli: 'gyro_lpf2_type', label: 'Filter Type', enum: 'lowpassFilterTypes', when: 'lowpass2' },
+                { cli: 'gyro_lpf2_static_hz', label: 'Cutoff Frequency', unit: 'Hz', when: 'lowpass2' }
+            ] },
+
+            { title: 'Notch Filter', rows: [
+                { sub: 'Notch Filter 1' },
+                { toggle: 'notch1', label: 'Enable' },
+                { cli: 'gyro_notch1_hz', label: 'Center Frequency', unit: 'Hz', when: 'notch1' },
+                { cli: 'gyro_notch1_cutoff', label: 'Cutoff Frequency', unit: 'Hz', when: 'notch1' },
+                { sub: 'Notch Filter 2' },
+                { toggle: 'notch2', label: 'Enable' },
+                { cli: 'gyro_notch2_hz', label: 'Center Frequency', unit: 'Hz', when: 'notch2' },
+                { cli: 'gyro_notch2_cutoff', label: 'Cutoff Frequency', unit: 'Hz', when: 'notch2' }
+            ] },
+
+            { title: 'Dynamic Filter', rows: [
+                { toggle: 'dynNotch', label: 'Enable' },
+                { cli: 'dyn_notch_count', label: 'Notch Count', when: 'dynNotch' },
+                { cli: 'dyn_notch_q', label: 'Notch Q', when: 'dynNotch' },
+                { cli: 'dyn_notch_min_hz', label: 'Notch Minimum Frequency', unit: 'Hz', when: 'dynNotch' },
+                { cli: 'dyn_notch_max_hz', label: 'Notch Maximum Frequency', unit: 'Hz', when: 'dynNotch' }
+            ] },
+
+            { title: 'RPM Filter', rows: [
+                { toggle: 'rpmFilter', label: 'Enable' },
+                { cli: 'gyro_rpm_notch_preset', label: 'Strength',
+                  enum: 'rpmFilterStrengths', when: 'rpmFilter' },
+                { cli: 'gyro_rpm_notch_min_hz', label: 'Minimum Frequency', unit: 'Hz', when: 'rpmFilter' }
+            ] },
+
+            { title: 'RPM Filter Notches', notches: true, when: 'rpmFilter', rows: [] }
+        ]
+    },
 
     /* The Power tab, from src/tabs/power.html and src/js/tabs/power.js.
      *
@@ -1151,6 +1217,15 @@ window.RF_MIXER_INPUT_DEFAULTS = {
 window.RF_ENUM_LISTS = {
     /* src/js/tabs/power.js getBatteryMeterTypes()/getSmartFuelSourceTypes(),
      * with the entry API 12.9 adds. */
+    /* src/tabs/gyro/LowpassFilter.svelte FILTER_TYPES; only two are offered,
+     * but the firmware's table is longer, so the rest keep their own names. */
+    lowpassFilterTypes: [
+        'Disabled', '1ˢᵗ order', '2ⁿᵈ order',
+        'PT1', 'PT2', 'PT3', 'Order1', 'Butter', 'Bessel', 'Damped'
+    ],
+    /* src/tabs/gyro/RpmFilter.svelte filterStrengths. */
+    rpmFilterStrengths: ['Custom', 'Low', 'Medium', 'High'],
+
     batteryMeterTypes: ['None', 'Battery ADC', 'ESC Telemetry', 'FrSky Sensor'],
     smartFuelSourceTypes: ['Off', 'Voltage', 'Current', 'Combined'],
 
@@ -1590,26 +1665,30 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     'use strict';
 
     var TABS = [
+        /* The Configurator 2.3's own rail, in its own order. The tabs after
+         * the divider are the viewer's: they hold settings the Configurator
+         * either reaches from somewhere else or leaves to the CLI, and they
+         * are kept so that nothing in a file goes unshown. */
         { id: 'setup', name: 'Setup', icon: 'setup' },
         { id: 'configuration', name: 'Configuration', icon: 'config' },
-        { id: 'ports', name: 'Ports', icon: 'ports' },
         { id: 'receiver', name: 'Receiver', icon: 'rx' },
-        { id: 'modes', name: 'Modes', icon: 'modes' },
-        { id: 'adjustments', name: 'Adjustments', icon: 'adjust' },
         { id: 'failsafe', name: 'Failsafe', icon: 'failsafe' },
         { id: 'power', name: 'Power', icon: 'power' },
         { id: 'motors', name: 'Motors', icon: 'motor' },
         { id: 'governor', name: 'Governor', icon: 'governor' },
         { id: 'servos', name: 'Servos', icon: 'servo' },
         { id: 'mixer', name: 'Mixer', icon: 'mixer' },
-        { id: 'filters', name: 'Filters', icon: 'gyro' },
+        { id: 'gyro', name: 'Gyro', icon: 'gyro' },
         { id: 'rates', name: 'Rates', icon: 'rates' },
-        { id: 'profiles', name: 'PID Profiles', icon: 'pid' },
-        { id: 'rescue', name: 'Rescue', icon: 'rescue' },
-        { id: 'blackbox', name: 'Blackbox', icon: 'data' },
-        { id: 'osd', name: 'OSD', icon: 'osd' },
+        { id: 'profiles', name: 'Profiles', icon: 'pid' },
+        { id: 'modes', name: 'Modes', icon: 'modes' },
+        { id: 'adjustments', name: 'Adjustments', icon: 'adjust' },
         { id: 'ledstrip', name: 'LED Strip', icon: 'led' },
         { id: 'beepers', name: 'Beepers', icon: 'beeper' },
+        { id: 'blackbox', name: 'Blackbox', icon: 'data' },
+        { id: 'ports', name: 'Ports', icon: 'ports' },
+        { id: 'rescue', name: 'Rescue', icon: 'rescue' },
+        { id: 'osd', name: 'OSD', icon: 'osd' },
         { id: 'gps', name: 'GPS', icon: 'gps' },
         { id: 'board', name: 'Board', icon: 'board' },
         { id: 'all', name: 'All Settings', icon: 'list' },
@@ -1639,7 +1718,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         PG_DISPLAY_PORT_MAX7456_CONFIG: 'osd',
         PG_DISPLAY_PORT_MSP_CONFIG: 'osd',
         PG_DRIVER_SBUS_OUT_CONFIG: 'board',
-        PG_DYN_NOTCH_CONFIG: 'filters',
+        PG_DYN_NOTCH_CONFIG: 'gyro',
         PG_ESC_SENSOR_CONFIG: 'motors',
         PG_FAILSAFE_CONFIG: 'failsafe',
         PG_FLASH_CONFIG: 'blackbox',
@@ -1649,7 +1728,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         PG_GOVERNOR_CONFIG: 'governor',
         PG_GPS_CONFIG: 'gps',
         PG_GPS_RESCUE: 'gps',
-        PG_GYRO_CONFIG: 'filters',
+        PG_GYRO_CONFIG: 'gyro',
         PG_GYRO_DEVICE_CONFIG: 'board',
         PG_I2C_CONFIG: 'board',
         PG_IMU_CONFIG: 'configuration',
@@ -1671,7 +1750,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         PG_RANGEFINDER_CONFIG: 'board',
         PG_RCDEVICE_CONFIG: 'board',
         PG_RC_CONTROLS_CONFIG: 'receiver',
-        PG_RPM_FILTER_CONFIG: 'filters',
+        PG_RPM_FILTER_CONFIG: 'gyro',
         PG_RX_CC2500_SPI_CONFIG: 'receiver',
         PG_RX_CONFIG: 'receiver',
         PG_RX_EXPRESSLRS_SPI_CONFIG: 'receiver',
@@ -1700,7 +1779,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         [/^rescue_/, 'rescue'],
         [/^gps_rescue_/, 'gps'],
         [/^(acro_trainer_|angle_level|horizon_)/, 'profiles'],
-        [/^gyro_rpm_notch_/, 'filters']
+        [/^gyro_rpm_notch_/, 'gyro']
     ];
 
     /* Curated panels, in the order the Configurator shows the equivalent boxes.
@@ -1852,17 +1931,17 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
           names: ['collective_tilt_correction_pos', 'collective_tilt_correction_neg'] },
 
         // ---- Filters -------------------------------------------------------
-        { tab: 'filters', title: 'Gyro Lowpass 1',
+        { tab: 'gyro', title: 'Gyro Lowpass 1',
           names: ['gyro_lpf1_type', 'gyro_lpf1_static_hz',
                   'gyro_lpf1_dyn_min_hz', 'gyro_lpf1_dyn_max_hz'] },
-        { tab: 'filters', title: 'Gyro Lowpass 2',
+        { tab: 'gyro', title: 'Gyro Lowpass 2',
           names: ['gyro_lpf2_type', 'gyro_lpf2_static_hz'] },
-        { tab: 'filters', title: 'Gyro Notches',
+        { tab: 'gyro', title: 'Gyro Notches',
           names: ['gyro_notch1_hz', 'gyro_notch1_cutoff',
                   'gyro_notch2_hz', 'gyro_notch2_cutoff'] },
-        { tab: 'filters', title: 'Dynamic Notch',
+        { tab: 'gyro', title: 'Dynamic Notch',
           names: ['dyn_notch_count', 'dyn_notch_q', 'dyn_notch_min_hz', 'dyn_notch_max_hz'] },
-        { tab: 'filters', title: 'RPM Filter',
+        { tab: 'gyro', title: 'RPM Filter',
           names: ['gyro_rpm_notch_preset', 'gyro_rpm_notch_min_hz',
                   'gyro_rpm_notch_source_roll', 'gyro_rpm_notch_q_roll',
                   'gyro_rpm_notch_center_roll',
@@ -1870,7 +1949,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
                   'gyro_rpm_notch_center_pitch',
                   'gyro_rpm_notch_source_yaw', 'gyro_rpm_notch_q_yaw',
                   'gyro_rpm_notch_center_yaw'] },
-        { tab: 'filters', title: 'Gyro Hardware',
+        { tab: 'gyro', title: 'Gyro Hardware',
           names: ['gyro_hardware_lpf', 'gyro_decimation_hz', 'gyro_rate_sync',
                   'gyro_to_use', 'gyro_high_range', 'gyro_overflow_detect',
                   'gyro_calib_duration', 'gyro_calib_noise_limit', 'gyro_offset_yaw'] },
@@ -3171,6 +3250,28 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     var WHEN = {
         variableTail: function () { return lookupIndex('tail_rotor_mode') === 0; },
         motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; },
+        /* A filter is on when its own values say so, not by a flag
+         * (src/tabs/gyro/LowpassFilter.svelte, NotchFilter.svelte). */
+        lowpass1: function () { return lookupIndex('gyro_lpf1_type') > 0; },
+        lowpass2: function () { return lookupIndex('gyro_lpf2_type') > 0; },
+        lowpass1Dyn: function () {
+            var min = masterValue('gyro_lpf1_dyn_min_hz');
+            var max = masterValue('gyro_lpf1_dyn_max_hz');
+            return min > 0 && min < max;
+        },
+        notch1: function () {
+            return masterValue('gyro_notch1_hz') > 0 && masterValue('gyro_notch1_cutoff') > 0;
+        },
+        notch2: function () {
+            return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
+        },
+        dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        rpmFilter: function () { return featureOn('RPM_FILTER'); },
+        mainMotorNotch: function () { return !unityRatio('main_rotor_gear_ratio'); },
+        tailMotorNotch: function () {
+            return lookupIndex('tail_rotor_mode') > 0 && !unityRatio('tail_rotor_gear_ratio');
+        },
+
         /* The Configurator hides the PWM timing settings unless the throttle
          * protocol is an analogue one (src/tabs/motors/state.svelte.js). */
         notDshot: function () {
@@ -3188,6 +3289,20 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         if (text === null || text === undefined || isNaN(Number(text))) { return text; }
         var value = Number(text) / factor;
         return places === undefined ? String(value) : value.toFixed(places);
+    }
+
+    function featureOn(name) {
+        var on = false;
+        if (!state.parsed) { return false; }
+        state.parsed.features.forEach(function (f) {
+            if (f.name === name) { on = f.enabled; }
+        });
+        return on;
+    }
+
+    function unityRatio(name) {
+        var pair = masterValue(name);
+        return Array.isArray(pair) && pair[0] === 1 && pair[1] === 1;
     }
 
     function times(value, factor, places) {
@@ -3236,15 +3351,24 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
     };
 
+    /* A switch the Configurator derives from the values it governs rather than
+     * from a setting of its own. */
+    function toggleRow(spec) {
+        var fn = WHEN[spec.toggle];
+        if (!fn) { return null; }
+        if (state.onlyChanged) { return null; }
+        if (!matchesFilter(spec.toggle, spec.label)) { return null; }
+        return simpleRow(spec.label, null, fn() ? 'ON' : 'OFF', spec.toggle,
+            'The Configurator works this switch out from the settings under it, '
+            + 'not from a setting of its own.');
+    }
+
     /* A switch the Configurator binds straight to the feature list, not to a
      * setting: the RPM Sensor toggle on the Motors tab is `feature
      * FREQ_SENSOR`. */
     function featureRow(spec) {
         if (!state.parsed) { return null; }
-        var on = false;
-        state.parsed.features.forEach(function (f) {
-            if (f.name === spec.feature) { on = f.enabled; }
-        });
+        var on = featureOn(spec.feature);
         if (state.onlyChanged) { return null; }
         if (!matchesFilter('feature ' + spec.feature, spec.label)) { return null; }
         return simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
@@ -3324,6 +3448,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         if (!versionOk(spec.ver)) { return null; }
         if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return null; }
         if (spec.calc) { return derivedRow(spec); }
+        if (spec.toggle) { return toggleRow(spec); }
         if (spec.feature) { return featureRow(spec); }
         if (spec.ratio) { return ratioRow(spec); }
         var m = meta(spec.cli);
@@ -3475,6 +3600,128 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         return wrap;
     }
 
+    // -------------------------------------------------------- RPM filter notches
+    //
+    // The firmware stores the RPM filter as sixteen slots per axis - a source,
+    // a Q and a centre offset each - and the Configurator reads them back into
+    // one control per harmonic. Consecutive slots sharing a source and Q are
+    // one multi-notch, and the offsets say whether it is double or triple.
+    // This follows parseRpmFilterConfig2() in src/tabs/gyro/filter_config.js.
+
+    var NOTCH_SOURCES = {
+        motors: [
+            { source: 10, label: 'Main Motor Notch Q', when: 'mainMotorNotch' },
+            { source: 20, label: 'Tail Motor Notch Q', when: 'tailMotorNotch' }
+        ],
+        main: [
+            { source: 11, label: 'Fundamental Frequency Notch Q', type: 'Fundamental Frequency Notch type' },
+            { source: 12, label: '2nd Harmonic Notch Q', type: '2nd Harmonic Notch Type' },
+            { source: 13, label: '3rd Harmonic Notch Q' },
+            { source: 14, label: '4th Harmonic Notch Q' },
+            { source: 15, label: '5th Harmonic Notch Q' },
+            { source: 16, label: '6th Harmonic Notch Q' },
+            { source: 17, label: '7th Harmonic Notch Q' },
+            { source: 18, label: '8th Harmonic Notch Q' }
+        ],
+        tail: [
+            { source: 21, label: 'Fundamental Frequency Notch Q', type: 'Fundamental Frequency Notch type' },
+            { source: 22, label: '2nd Harmonic Notch Q', type: '2nd Harmonic Notch Type' },
+            { source: 23, label: '3rd Harmonic Notch Q' },
+            { source: 24, label: '4th Harmonic Notch Q' }
+        ]
+    };
+
+    var NOTCH_TYPE_NAMES = { 1: 'SINGLE', 2: 'DOUBLE', 3: 'TRIPLE' };
+    var NOTCH_DEFAULT_Q = '2.5';
+
+    function decodeNotches(axis) {
+        var sources = masterValue('gyro_rpm_notch_source_' + axis);
+        var qs = masterValue('gyro_rpm_notch_q_' + axis);
+        var centres = masterValue('gyro_rpm_notch_center_' + axis);
+        if (!Array.isArray(sources) || !Array.isArray(qs)) { return null; }
+
+        var out = {};
+        for (var i = 0; i < sources.length; i++) {
+            var source = sources[i];
+            if (!source) { continue; }
+            var q = qs[i];
+            var run = 1;
+            while (i + run < sources.length
+                   && sources[i + run] === source && qs[i + run] === q) { run++; }
+            out[source] = {
+                type: run,
+                value: (q / 10).toFixed(1),
+                centres: (centres || []).slice(i, i + run)
+            };
+            i += run - 1;
+        }
+        return out;
+    }
+
+    function notchesBox(axes) {
+        var wrap = el('div', 'notches');
+        var any = false;
+
+        axes.forEach(function (axis) {
+            var found = decodeNotches(axis);
+            if (!found) { return; }
+            any = true;
+            wrap.appendChild(el('div', 'notch-axis axis-' + axis,
+                axis.charAt(0).toUpperCase() + axis.slice(1)));
+            var table = el('table', 'settings_table');
+            var tbody = el('tbody');
+            table.appendChild(tbody);
+
+            ['motors', 'main', 'tail'].forEach(function (group) {
+                var specs = NOTCH_SOURCES[group].filter(function (s) {
+                    return !s.when || (WHEN[s.when] && WHEN[s.when]());
+                });
+                if (!specs.length) { return; }
+                var head = el('tr', 'subheading');
+                var cell = el('td', 'label');
+                cell.colSpan = 4;
+                cell.textContent = { motors: 'Motors', main: 'Main Rotor', tail: 'Tail Rotor' }[group];
+                head.appendChild(cell);
+                tbody.appendChild(head);
+
+                specs.forEach(function (spec) {
+                    var notch = found[spec.source];
+                    if (spec.type) {
+                        tbody.appendChild(notchRow(spec.type,
+                            notch ? NOTCH_TYPE_NAMES[notch.type] : 'SINGLE',
+                            !!notch, 'notch source ' + spec.source));
+                    }
+                    tbody.appendChild(notchRow(spec.label,
+                        notch ? notch.value : NOTCH_DEFAULT_Q,
+                        !!notch, 'notch source ' + spec.source));
+                });
+            });
+            wrap.appendChild(table);
+        });
+
+        return any ? wrap : null;
+    }
+
+    function notchRow(label, shown, on, provenance) {
+        var row = el('tr', on ? 'is-derived' : 'is-derived is-off');
+        var control = el('td', 'control');
+        var sw = el('div', 'switch' + (on ? ' on' : ''));
+        sw.title = on ? 'on' : 'off';
+        control.appendChild(sw);
+        row.appendChild(control);
+
+        var value = el('td', 'control');
+        value.appendChild(controlFor(provenance, null, shown));
+        row.appendChild(value);
+
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(label));
+        lab.appendChild(el('span', 'cli-name', provenance));
+        row.appendChild(lab);
+        row.appendChild(el('td', 'help'));
+        return row;
+    }
+
     /* A tab whose layout is transcribed from the Configurator. */
     function renderLayoutTab(tabId) {
         var layout = (window.RF_LAYOUT || {})[tabId];
@@ -3496,6 +3743,21 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             if (!versionOk(box.ver)) { return; }
             var gui = panel(box.title, layout.scope
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
+
+            if (box.when && WHEN[box.when] && !WHEN[box.when]()) { return; }
+
+            if (box.notches) {
+                var boxes = notchesBox(['roll', 'pitch', 'yaw']);
+                if (boxes) {
+                    panelBody(gui).appendChild(el('div', 'note',
+                        'The Configurator shows one axis at a time behind Roll / Pitch / '
+                        + 'Yaw buttons; all three are laid out here.'));
+                    panelBody(gui).appendChild(boxes);
+                    grid.appendChild(gui);
+                    rendered++;
+                }
+                return;
+            }
 
             if (box.curve) {
                 var curve = curveBox(box.curve);

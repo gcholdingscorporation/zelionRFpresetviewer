@@ -1067,6 +1067,28 @@
     var WHEN = {
         variableTail: function () { return lookupIndex('tail_rotor_mode') === 0; },
         motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; },
+        /* A filter is on when its own values say so, not by a flag
+         * (src/tabs/gyro/LowpassFilter.svelte, NotchFilter.svelte). */
+        lowpass1: function () { return lookupIndex('gyro_lpf1_type') > 0; },
+        lowpass2: function () { return lookupIndex('gyro_lpf2_type') > 0; },
+        lowpass1Dyn: function () {
+            var min = masterValue('gyro_lpf1_dyn_min_hz');
+            var max = masterValue('gyro_lpf1_dyn_max_hz');
+            return min > 0 && min < max;
+        },
+        notch1: function () {
+            return masterValue('gyro_notch1_hz') > 0 && masterValue('gyro_notch1_cutoff') > 0;
+        },
+        notch2: function () {
+            return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
+        },
+        dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        rpmFilter: function () { return featureOn('RPM_FILTER'); },
+        mainMotorNotch: function () { return !unityRatio('main_rotor_gear_ratio'); },
+        tailMotorNotch: function () {
+            return lookupIndex('tail_rotor_mode') > 0 && !unityRatio('tail_rotor_gear_ratio');
+        },
+
         /* The Configurator hides the PWM timing settings unless the throttle
          * protocol is an analogue one (src/tabs/motors/state.svelte.js). */
         notDshot: function () {
@@ -1084,6 +1106,20 @@
         if (text === null || text === undefined || isNaN(Number(text))) { return text; }
         var value = Number(text) / factor;
         return places === undefined ? String(value) : value.toFixed(places);
+    }
+
+    function featureOn(name) {
+        var on = false;
+        if (!state.parsed) { return false; }
+        state.parsed.features.forEach(function (f) {
+            if (f.name === name) { on = f.enabled; }
+        });
+        return on;
+    }
+
+    function unityRatio(name) {
+        var pair = masterValue(name);
+        return Array.isArray(pair) && pair[0] === 1 && pair[1] === 1;
     }
 
     function times(value, factor, places) {
@@ -1132,15 +1168,24 @@
         tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
     };
 
+    /* A switch the Configurator derives from the values it governs rather than
+     * from a setting of its own. */
+    function toggleRow(spec) {
+        var fn = WHEN[spec.toggle];
+        if (!fn) { return null; }
+        if (state.onlyChanged) { return null; }
+        if (!matchesFilter(spec.toggle, spec.label)) { return null; }
+        return simpleRow(spec.label, null, fn() ? 'ON' : 'OFF', spec.toggle,
+            'The Configurator works this switch out from the settings under it, '
+            + 'not from a setting of its own.');
+    }
+
     /* A switch the Configurator binds straight to the feature list, not to a
      * setting: the RPM Sensor toggle on the Motors tab is `feature
      * FREQ_SENSOR`. */
     function featureRow(spec) {
         if (!state.parsed) { return null; }
-        var on = false;
-        state.parsed.features.forEach(function (f) {
-            if (f.name === spec.feature) { on = f.enabled; }
-        });
+        var on = featureOn(spec.feature);
         if (state.onlyChanged) { return null; }
         if (!matchesFilter('feature ' + spec.feature, spec.label)) { return null; }
         return simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
@@ -1220,6 +1265,7 @@
         if (!versionOk(spec.ver)) { return null; }
         if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return null; }
         if (spec.calc) { return derivedRow(spec); }
+        if (spec.toggle) { return toggleRow(spec); }
         if (spec.feature) { return featureRow(spec); }
         if (spec.ratio) { return ratioRow(spec); }
         var m = meta(spec.cli);
@@ -1371,6 +1417,128 @@
         return wrap;
     }
 
+    // -------------------------------------------------------- RPM filter notches
+    //
+    // The firmware stores the RPM filter as sixteen slots per axis - a source,
+    // a Q and a centre offset each - and the Configurator reads them back into
+    // one control per harmonic. Consecutive slots sharing a source and Q are
+    // one multi-notch, and the offsets say whether it is double or triple.
+    // This follows parseRpmFilterConfig2() in src/tabs/gyro/filter_config.js.
+
+    var NOTCH_SOURCES = {
+        motors: [
+            { source: 10, label: 'Main Motor Notch Q', when: 'mainMotorNotch' },
+            { source: 20, label: 'Tail Motor Notch Q', when: 'tailMotorNotch' }
+        ],
+        main: [
+            { source: 11, label: 'Fundamental Frequency Notch Q', type: 'Fundamental Frequency Notch type' },
+            { source: 12, label: '2nd Harmonic Notch Q', type: '2nd Harmonic Notch Type' },
+            { source: 13, label: '3rd Harmonic Notch Q' },
+            { source: 14, label: '4th Harmonic Notch Q' },
+            { source: 15, label: '5th Harmonic Notch Q' },
+            { source: 16, label: '6th Harmonic Notch Q' },
+            { source: 17, label: '7th Harmonic Notch Q' },
+            { source: 18, label: '8th Harmonic Notch Q' }
+        ],
+        tail: [
+            { source: 21, label: 'Fundamental Frequency Notch Q', type: 'Fundamental Frequency Notch type' },
+            { source: 22, label: '2nd Harmonic Notch Q', type: '2nd Harmonic Notch Type' },
+            { source: 23, label: '3rd Harmonic Notch Q' },
+            { source: 24, label: '4th Harmonic Notch Q' }
+        ]
+    };
+
+    var NOTCH_TYPE_NAMES = { 1: 'SINGLE', 2: 'DOUBLE', 3: 'TRIPLE' };
+    var NOTCH_DEFAULT_Q = '2.5';
+
+    function decodeNotches(axis) {
+        var sources = masterValue('gyro_rpm_notch_source_' + axis);
+        var qs = masterValue('gyro_rpm_notch_q_' + axis);
+        var centres = masterValue('gyro_rpm_notch_center_' + axis);
+        if (!Array.isArray(sources) || !Array.isArray(qs)) { return null; }
+
+        var out = {};
+        for (var i = 0; i < sources.length; i++) {
+            var source = sources[i];
+            if (!source) { continue; }
+            var q = qs[i];
+            var run = 1;
+            while (i + run < sources.length
+                   && sources[i + run] === source && qs[i + run] === q) { run++; }
+            out[source] = {
+                type: run,
+                value: (q / 10).toFixed(1),
+                centres: (centres || []).slice(i, i + run)
+            };
+            i += run - 1;
+        }
+        return out;
+    }
+
+    function notchesBox(axes) {
+        var wrap = el('div', 'notches');
+        var any = false;
+
+        axes.forEach(function (axis) {
+            var found = decodeNotches(axis);
+            if (!found) { return; }
+            any = true;
+            wrap.appendChild(el('div', 'notch-axis axis-' + axis,
+                axis.charAt(0).toUpperCase() + axis.slice(1)));
+            var table = el('table', 'settings_table');
+            var tbody = el('tbody');
+            table.appendChild(tbody);
+
+            ['motors', 'main', 'tail'].forEach(function (group) {
+                var specs = NOTCH_SOURCES[group].filter(function (s) {
+                    return !s.when || (WHEN[s.when] && WHEN[s.when]());
+                });
+                if (!specs.length) { return; }
+                var head = el('tr', 'subheading');
+                var cell = el('td', 'label');
+                cell.colSpan = 4;
+                cell.textContent = { motors: 'Motors', main: 'Main Rotor', tail: 'Tail Rotor' }[group];
+                head.appendChild(cell);
+                tbody.appendChild(head);
+
+                specs.forEach(function (spec) {
+                    var notch = found[spec.source];
+                    if (spec.type) {
+                        tbody.appendChild(notchRow(spec.type,
+                            notch ? NOTCH_TYPE_NAMES[notch.type] : 'SINGLE',
+                            !!notch, 'notch source ' + spec.source));
+                    }
+                    tbody.appendChild(notchRow(spec.label,
+                        notch ? notch.value : NOTCH_DEFAULT_Q,
+                        !!notch, 'notch source ' + spec.source));
+                });
+            });
+            wrap.appendChild(table);
+        });
+
+        return any ? wrap : null;
+    }
+
+    function notchRow(label, shown, on, provenance) {
+        var row = el('tr', on ? 'is-derived' : 'is-derived is-off');
+        var control = el('td', 'control');
+        var sw = el('div', 'switch' + (on ? ' on' : ''));
+        sw.title = on ? 'on' : 'off';
+        control.appendChild(sw);
+        row.appendChild(control);
+
+        var value = el('td', 'control');
+        value.appendChild(controlFor(provenance, null, shown));
+        row.appendChild(value);
+
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(label));
+        lab.appendChild(el('span', 'cli-name', provenance));
+        row.appendChild(lab);
+        row.appendChild(el('td', 'help'));
+        return row;
+    }
+
     /* A tab whose layout is transcribed from the Configurator. */
     function renderLayoutTab(tabId) {
         var layout = (window.RF_LAYOUT || {})[tabId];
@@ -1392,6 +1560,21 @@
             if (!versionOk(box.ver)) { return; }
             var gui = panel(box.title, layout.scope
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
+
+            if (box.when && WHEN[box.when] && !WHEN[box.when]()) { return; }
+
+            if (box.notches) {
+                var boxes = notchesBox(['roll', 'pitch', 'yaw']);
+                if (boxes) {
+                    panelBody(gui).appendChild(el('div', 'note',
+                        'The Configurator shows one axis at a time behind Roll / Pitch / '
+                        + 'Yaw buttons; all three are laid out here.'));
+                    panelBody(gui).appendChild(boxes);
+                    grid.appendChild(gui);
+                    rendered++;
+                }
+                return;
+            }
 
             if (box.curve) {
                 var curve = curveBox(box.curve);
