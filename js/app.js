@@ -67,6 +67,24 @@
         return state.db && state.db.settings[name] ? state.db.settings[name] : null;
     }
 
+    /* Some settings are stored in tenths and shown scaled: the CLI prints
+     * `gov_spoolup_time = 300` where the Configurator shows `30.0 s`. The
+     * factors are extracted from the Configurator's own bindings, per firmware,
+     * because a few of them changed between releases. */
+    function scaleFor(name) {
+        var table = (window.RF_SCALES || {})[state.dbKey];
+        return (table && table[name]) || 1;
+    }
+
+    /* Apply a setting's display scale, keeping the decimals the factor implies
+     * so a tenth reads as "5.0" rather than "5". */
+    function scaled(value, name) {
+        var factor = scaleFor(name);
+        if (factor === 1 || typeof value !== 'number') { return value; }
+        var places = String(factor).length - 1;
+        return (value / factor).toFixed(places);
+    }
+
     function lut(m) {
         if (!m || !m.lut || !state.db.luts) { return null; }
         return state.db.luts[m.lut] || null;
@@ -81,14 +99,18 @@
         if (table && typeof m.d === 'number' && table[m.d] !== undefined) {
             return table[m.d];
         }
-        if (Array.isArray(m.d)) { return m.d.join(','); }
-        return String(m.d);
+        if (Array.isArray(m.d)) {
+            return m.d.map(function (v) { return scaled(v, name); }).join(',');
+        }
+        return String(scaled(m.d, name));
     }
 
-    function valueDisplay(entry) {
+    function valueDisplay(entry, name) {
         if (!entry) { return null; }
-        if (Array.isArray(entry.value)) { return entry.value.join(','); }
-        return String(entry.value);
+        if (Array.isArray(entry.value)) {
+            return entry.value.map(function (v) { return scaled(v, name); }).join(',');
+        }
+        return String(scaled(entry.value, name));
     }
 
     function lookupSection(scope, index) {
@@ -163,7 +185,7 @@
         var label = S.prettify(name);
         if (!matchesFilter(name, label)) { return null; }
 
-        var shown = present ? valueDisplay(present) : defaultDisplay(name);
+        var shown = present ? valueDisplay(present, name) : defaultDisplay(name);
         var def = defaultDisplay(name);
         var known = !!m;
         var changed = !!present && def !== null && shown !== def;
@@ -814,7 +836,7 @@
             ['Setting', 'Scope', 'Value', 'Firmware default', 'Tab', 'Line'],
             list.map(function (s) {
                 var def = defaultDisplay(s.name);
-                var shown = valueDisplay(s.entry);
+                var shown = valueDisplay(s.entry, s.name);
                 var changed = def !== null && shown !== def;
                 var tabId = S.tabFor(s.name, meta(s.name));
                 var tabDef = S.TABS.filter(function (t) { return t.id === tabId; })[0];
@@ -894,7 +916,7 @@
                 if (!meta(name)) { row.appendChild(cell); return; }
 
                 var present = entryFor(name, 'profile', index);
-                var shown = present ? valueDisplay(present) : defaultDisplay(name);
+                var shown = present ? valueDisplay(present, name) : defaultDisplay(name);
                 var def = defaultDisplay(name);
                 if (present && def !== null && shown !== def) {
                     cell.className = 'pid_data is-changed';
@@ -936,8 +958,8 @@
         var shownAll = present ? present.value : (m.d === undefined ? null : m.d);
         var defAll = m.d === undefined ? null : m.d;
 
-        var shown = format(sliceOf(shownAll, spec.idx), m);
-        var def = format(sliceOf(defAll, spec.idx), m);
+        var shown = format(sliceOf(shownAll, spec.idx), m, spec.cli);
+        var def = format(sliceOf(defAll, spec.idx), m, spec.cli);
         var changed = !!present && def !== null && shown !== def;
         if (state.onlyChanged && !changed) { return null; }
 
@@ -967,14 +989,16 @@
     }
 
     /* Render a value the way the file or the firmware states it. */
-    function format(value, m) {
+    function format(value, m, name) {
         if (value === null || value === undefined) { return null; }
-        if (Array.isArray(value)) { return value.join(','); }
+        if (Array.isArray(value)) {
+            return value.map(function (v) { return scaled(v, name); }).join(',');
+        }
         var table = lut(m);
         if (table && typeof value === 'number' && table[value] !== undefined) {
             return table[value];
         }
-        return String(value);
+        return String(scaled(value, name));
     }
 
     /* A group is a toggle whose state the Configurator derives from whether the
