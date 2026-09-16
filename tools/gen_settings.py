@@ -244,6 +244,13 @@ def parse_string_arrays(text):
         if not values:
             # Some tables stringify through a macro, e.g. DEBUG_NAME(CYCLETIME).
             values = re.findall(r'\b\w+\s*\(\s*(\w+)\s*\)', body)
+        # A table can be defined twice, once per side of an #if on an optional
+        # feature - lookupTableLEDProfile is RACE/BEACON/STATUS/STATUS_ALT with
+        # the status modes compiled in and RACE/BEACON without. The longer one
+        # is the one a normal build has, and taking the last would silently
+        # drop the entries a file can actually name.
+        if name in tables and len(tables[name]) >= len(values):
+            continue
         tables[name] = values
     return tables
 

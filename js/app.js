@@ -1003,34 +1003,105 @@
 
     // --------------------------------------------------------- ledstrip tab
 
+    /* The LED Strip tab, from src/tabs/led_strip.html and
+     * src/js/tabs/led_strip.js.
+     *
+     * The grid and its colour wheel are an editor, not a readout, so what the
+     * viewer can show is which LEDs are in use, how many are left, the sixteen
+     * colours as colours, and the global settings - including the blink tempo,
+     * which the tab prints in beats per minute rather than the milliseconds
+     * the setting holds (led_strip.js msToBpm: 60 x 250 / ms).
+     */
+    function ledInUse(spec) {
+        /* `0,0::C:0:0:0:0` is an LED at the origin with no function: unused. */
+        return !/^0,0::/.test(spec);
+    }
+
+    /* `color N h,s,v` - hue in degrees, the other two 0-255, and the middle
+     * one is whiteness rather than saturation: 0 is the full colour and 255 is
+     * white, which is why the firmware's white is 0,255,255 and its red is
+     * 0,0,255. This is led_strip.js HsvToColor(), kept as it is written so the
+     * swatch is the colour the Configurator draws. */
+    function hsvSwatch(spec) {
+        var parts = String(spec).split(',');
+        if (parts.length < 3) { return null; }
+        var h = Number(parts[0]);
+        var s = Number(parts[1]);
+        var v = Number(parts[2]);
+        if (isNaN(h) || isNaN(s) || isNaN(v)) { return null; }
+        if (s === 0 && v === 0) { return null; }
+
+        s = 1 - s / 255;
+        v = v / 255;
+        var l = (2 - s) * v / 2;
+        var sat = l && l < 1 ? s * v / (l < 0.5 ? l * 2 : 2 - l * 2) : 0;
+
+        var box = el('span', 'swatch');
+        box.style.background = 'hsl(' + h + ',' + (sat * 100) + '%,' + (l * 100) + '%)';
+        box.title = 'H ' + parts[0] + '  S ' + parts[1] + '  V ' + parts[2];
+        return box;
+    }
+
     function renderLedStrip() {
         var frag = document.createDocumentFragment();
         var leds = rows('led');
+        var used = leds.filter(function (l) { return ledInUse(l.spec); });
+
         if (leds.length) {
-            var lb = panel('LEDs', leds.length + ' defined');
-            panelBody(lb).appendChild(table(['#', 'Definition'],
-                leds.map(function (l) {
-                    return [{ text: l.index, cls: 'name' }, { text: l.spec, cls: 'name' }];
-                })));
+            var lb = panel('LED Strip', (leds.length - used.length) + ' remaining');
+            if (used.length) {
+                panelBody(lb).appendChild(table(['#', 'Definition'],
+                    used.map(function (l) {
+                        return [{ text: l.index, cls: 'name' }, { text: l.spec, cls: 'name' }];
+                    })));
+            } else {
+                panelBody(lb).appendChild(el('div', 'empty-note',
+                    'None of the ' + leds.length + ' LEDs is placed on the grid, '
+                    + 'so the strip is unused.'));
+            }
             frag.appendChild(lb);
         }
+
         var colors = rows('color');
         if (colors.length) {
-            var cb = panel('Colours', colors.length + ' defined');
-            panelBody(cb).appendChild(table(['#', 'H,S,V'],
+            var cb = panel('Colors', colors.length + ' defined');
+            panelBody(cb).appendChild(table(['#', '', 'H,S,V'],
                 colors.map(function (c) {
-                    return [{ text: c.index, cls: 'name' }, { text: c.spec, cls: 'name' }];
+                    var swatch = hsvSwatch(c.spec);
+                    return [{ text: c.index, cls: 'name' },
+                            swatch || '', { text: c.spec, cls: 'name' }];
                 })));
             frag.appendChild(cb);
         }
+
         var mc = rows('mode_color');
         if (mc.length) {
-            var mb = panel('Mode Colours');
-            panelBody(mb).appendChild(table(['Mode', 'Function', 'Colour'],
+            var mb = panel('Mode Colors');
+            panelBody(mb).appendChild(table(['Mode', 'Function', 'Color'],
                 mc.map(function (m) { return [m.mode, m.func, m.color]; })));
             frag.appendChild(mb);
         }
-        frag.appendChild(renderSettingsTab('ledstrip', { quiet: true }));
+
+        var gb = panel('LED Strip Global Settings');
+        var tbody = settingsTable(gb);
+        var shown = 0;
+        [{ cli: 'ledstrip_profile', label: 'Profile', enum: 'ledStripProfile' },
+         { calc: 'blinkTempo', label: 'Blink tempo', unit: 'BPM', from: 'ledstrip_blink_period_ms' },
+         { cli: 'ledstrip_fade_rate', label: 'Fade rate' },
+         { cli: 'ledstrip_flicker_rate', label: 'Flicker rate' },
+         { cli: 'ledstrip_brightness', label: 'Overall brightness' }].forEach(function (spec) {
+            var row = layoutRow(spec, 0);
+            if (row) { tbody.appendChild(row); shown++; }
+        });
+        if (shown) { frag.appendChild(gb); }
+
+        frag.appendChild(renderSettingsTab('ledstrip', {
+            quiet: true,
+            skip: { ledstrip_profile: true, ledstrip_blink_period_ms: true,
+                    ledstrip_fade_rate: true, ledstrip_flicker_rate: true,
+                    ledstrip_brightness: true },
+            hint: 'not on the Configurator\u2019s LED Strip tab'
+        }));
         return frag;
     }
 
@@ -1442,6 +1513,14 @@
         tailRotorMaxYaw:     function () { return times(inputField('SY', 'max'), 24 / 1000); },
         tailMotorMinYaw:     function () { return times(inputField('SY', 'min'), -0.1); },
         tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); },
+
+        /* led_strip.js msToBpm(): 60 x 250 / ms, clamped to 30..300. */
+        blinkTempo: function () {
+            var ms = masterValue('ledstrip_blink_period_ms');
+            if (!ms) { return null; }
+            var bpm = Math.round(60 * 250 / ms);
+            return String(Math.min(300, Math.max(30, bpm)));
+        },
 
         /* configuration.js shows the total as whole hours and minutes. */
         flightTime: function () {

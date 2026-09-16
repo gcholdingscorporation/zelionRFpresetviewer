@@ -689,3 +689,12 @@ tr.is-active td.label { font-weight: bold; }
 .notch-axis.axis-pitch { background: #80FF80; }
 .notch-axis.axis-yaw   { background: #8080FF; }
 tr.is-off td.control input { color: var(--quietHeader); }
+
+/* A stored LED colour, shown as the colour it is. */
+span.swatch {
+    display: inline-block;
+    width: 34px;
+    height: 14px;
+    border: 1px solid var(--quietHeader);
+    vertical-align: middle;
+}
