@@ -24,6 +24,24 @@ jobs:
           node-version: '20'
       - run: node tools/selftest.js
 
+  render:
+    name: values traced back to the file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 tools/build_single.py
+      - run: npm install --no-save playwright@1.49.1
+      - run: npx playwright install --with-deps chromium
+      # Loads the built page for each sample and re-derives every value it
+      # shows straight from the file, independently of the viewer's own code.
+      - run: node tools/verify_render.js samples/*.txt
+
   windows-exe:
     name: portable Windows .exe
     runs-on: ubuntu-latest

@@ -1001,12 +1001,21 @@ window.RF_LAYOUT = {
                 { cli: 'vbat_min_cell_voltage', label: 'Minimum Cell Voltage', div: 100, dp: 2 },
                 { cli: 'battery_cell_count', label: 'Cell count' },
                 { sub: 'Capacity [mAh]' },
-                { cli: 'bat_capacity', idx: 0, label: 'Battery 1', unit: 'mAh', active: 'bat_profile' },
-                { cli: 'bat_capacity', idx: 1, label: 'Battery 2', unit: 'mAh', active: 'bat_profile' },
-                { cli: 'bat_capacity', idx: 2, label: 'Battery 3', unit: 'mAh', active: 'bat_profile' },
-                { cli: 'bat_capacity', idx: 3, label: 'Battery 4', unit: 'mAh', active: 'bat_profile' },
-                { cli: 'bat_capacity', idx: 4, label: 'Battery 5', unit: 'mAh', active: 'bat_profile' },
-                { cli: 'bat_capacity', idx: 5, label: 'Battery 6', unit: 'mAh', active: 'bat_profile' }
+                /* 4.6 keeps one capacity per battery profile; before that it
+                 * was a single number, so the page had a single field. */
+                { cli: 'bat_capacity', label: 'Capacity', unit: 'mAh', ver: '<4.6' },
+                { cli: 'bat_capacity', idx: 0, label: 'Battery 1', unit: 'mAh',
+                  active: 'bat_profile', ver: '>=4.6' },
+                { cli: 'bat_capacity', idx: 1, label: 'Battery 2', unit: 'mAh',
+                  active: 'bat_profile', ver: '>=4.6' },
+                { cli: 'bat_capacity', idx: 2, label: 'Battery 3', unit: 'mAh',
+                  active: 'bat_profile', ver: '>=4.6' },
+                { cli: 'bat_capacity', idx: 3, label: 'Battery 4', unit: 'mAh',
+                  active: 'bat_profile', ver: '>=4.6' },
+                { cli: 'bat_capacity', idx: 4, label: 'Battery 5', unit: 'mAh',
+                  active: 'bat_profile', ver: '>=4.6' },
+                { cli: 'bat_capacity', idx: 5, label: 'Battery 6', unit: 'mAh',
+                  active: 'bat_profile', ver: '>=4.6' }
             ] },
 
             { title: 'Smart Fuel', ver: '>=4.6', rows: [
@@ -1045,9 +1054,9 @@ window.RF_LAYOUT = {
                 { cli: 'motor_pwm_rate', label: 'Update Frequency', unit: 'Hz', when: 'notDshot' },
                 { cli: 'use_unsynced_pwm', label: 'Unsyncronised ESC update', when: 'notDshot' },
                 { sub: 'Throttle Range' },
-                { cli: 'mincommand', label: 'Motor Off', unit: 'μs', when: 'notDshot' },
-                { cli: 'minthrottle', label: 'Low Throttle', unit: 'μs', when: 'notDshot' },
-                { cli: 'maxthrottle', label: 'High Throttle', unit: 'μs', when: 'notDshot' }
+                { cli: 'min_command', label: 'Motor Off', unit: 'μs', when: 'notDshot' },
+                { cli: 'min_throttle', label: 'Low Throttle', unit: 'μs', when: 'notDshot' },
+                { cli: 'max_throttle', label: 'High Throttle', unit: 'μs', when: 'notDshot' }
             ] },
 
             { title: 'ESC Telemetry', rows: [

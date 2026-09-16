@@ -206,5 +206,88 @@ for (const version of ['4.5', '4.6']) {
           [...pgs].filter(pg => !S.PG_TAB[pg]), []);
 }
 
+// ---------------------------------------------------- transcribed layouts
+//
+// A layout is a transcription, and a transcription can carry a typo that no
+// firmware would ever reject: a setting name that does not exist, an enum that
+// names no table, a condition that names no function. Each of those fails
+// silently at render time - the row simply does not appear - so they are
+// checked here instead.
+
+require(path.join(ROOT, 'data/layout-2.3.js'));
+require(path.join(ROOT, 'data/enums-2.3.js'));
+require(path.join(ROOT, 'data/scales-2.3.js'));
+require(path.join(ROOT, 'data/labels-2.3.js'));
+
+const allNames = new Set();
+for (const version of ['4.5', '4.6']) {
+    Object.keys(window.RF_DB[version].settings).forEach(n => allNames.add(n));
+}
+
+const layoutRows = [];
+for (const [tabId, layout] of Object.entries(window.RF_LAYOUT)) {
+    const walk = (specs) => specs.forEach(spec => {
+        if (spec.rows) { walk(spec.rows); }
+        layoutRows.push({ tab: tabId, spec });
+    });
+    layout.boxes.forEach(box => walk(box.rows));
+}
+ok(`layout: rows to check (${layoutRows.length})`, layoutRows.length > 100);
+
+check('layout: every `cli` names a real setting',
+      layoutRows.filter(r => r.spec.cli && !allNames.has(r.spec.cli))
+          .map(r => `${r.tab}: ${r.spec.cli}`), []);
+
+// A row that picks one element of an array must be addressing an array.
+check('layout: every `idx` addresses an array setting',
+      layoutRows.filter(r => r.spec.idx !== undefined && r.spec.cli)
+          .filter(r => {
+              const m = window.RF_DB['4.6'].settings[r.spec.cli]
+                  || window.RF_DB['4.5'].settings[r.spec.cli];
+              return m && m.m !== 'array';
+          }).map(r => `${r.tab}: ${r.spec.cli}[${r.spec.idx}]`), []);
+
+const enumTables = new Set([
+    ...Object.keys(window.RF_ENUMS.byId),
+    ...Object.keys(window.RF_ENUM_LISTS || {}),
+]);
+check('layout: every `enum` names a table',
+      layoutRows.filter(r => r.spec.enum && !enumTables.has(r.spec.enum))
+          .map(r => `${r.tab}: ${r.spec.enum}`), []);
+
+// The predicates and derived values live in app.js, which needs a DOM, so the
+// names are read out of its source rather than called.
+const appSrc = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const declared = (block, src) => {
+    const m = src.match(new RegExp(`var ${block} = \\{([\\s\\S]*?)\\n    \\};`));
+    return new Set(m ? [...m[1].matchAll(/^\s*(\w+):/gm)].map(x => x[1]) : []);
+};
+const whens = declared('WHEN', appSrc);
+const derived = declared('DERIVED', appSrc);
+
+check('layout: every `when` names a predicate',
+      layoutRows.filter(r => r.spec.when && !whens.has(r.spec.when))
+          .map(r => `${r.tab}: ${r.spec.when}`), []);
+check('layout: every `toggle` names a predicate',
+      layoutRows.filter(r => r.spec.toggle && !whens.has(r.spec.toggle))
+          .map(r => `${r.tab}: ${r.spec.toggle}`), []);
+check('layout: every `calc` names a derived value',
+      layoutRows.filter(r => r.spec.calc && !derived.has(r.spec.calc))
+          .map(r => `${r.tab}: ${r.spec.calc}`), []);
+
+// A setting shown twice on the same tab would be a transcription slip.
+const seen = {};
+const twice = [];
+layoutRows.filter(r => r.spec.cli).forEach(r => {
+    const key = `${r.tab}:${r.spec.cli}:${r.spec.idx}:${r.spec.ver || ''}:${r.spec.when || ''}`;
+    if (seen[key]) { twice.push(key); }
+    seen[key] = true;
+});
+check('layout: no setting is transcribed twice on a tab', twice, []);
+
+// Every layout tab must be a real tab.
+check('layout: every layout names a real tab',
+      Object.keys(window.RF_LAYOUT).filter(id => !tabIds.has(id)), []);
+
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
