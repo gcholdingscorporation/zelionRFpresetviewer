@@ -19,6 +19,52 @@
 
 window.RF_LAYOUT = {
 
+    /* The Motors tab, from src/tabs/motors/*.svelte.
+     *
+     * Rotor Speed, Throttle Override and the per-motor panels are live
+     * telemetry, so there is nothing in a file for them and they are not here.
+     */
+    motors: {
+        boxes: [
+            { title: 'Throttle', rows: [
+                { cli: 'motor_pwm_protocol', label: 'Throttle Protocol' },
+                /* Everything below is hidden for a digital protocol - the
+                 * PWM timing and endpoints only mean anything for an
+                 * analogue one (src/tabs/motors/Throttle.svelte). */
+                { cli: 'motor_pwm_rate', label: 'Update Frequency', unit: 'Hz', when: 'notDshot' },
+                { cli: 'use_unsynced_pwm', label: 'Unsyncronised ESC update', when: 'notDshot' },
+                { sub: 'Throttle Range' },
+                { cli: 'mincommand', label: 'Motor Off', unit: 'μs', when: 'notDshot' },
+                { cli: 'minthrottle', label: 'Low Throttle', unit: 'μs', when: 'notDshot' },
+                { cli: 'maxthrottle', label: 'High Throttle', unit: 'μs', when: 'notDshot' }
+            ] },
+
+            { title: 'ESC Telemetry', rows: [
+                { cli: 'esc_sensor_protocol', label: 'Telemetry Protocol', enum: 'escTelemetryProtocols' },
+                { sub: 'Signaling' },
+                { cli: 'esc_sensor_halfduplex', label: 'Half-Duplex' },
+                { cli: 'esc_sensor_pinswap', label: 'Pin Swap' },
+                { sub: 'Sensor Correction' },
+                { cli: 'esc_sensor_voltage_correction', label: 'Voltage', unit: '%' },
+                { cli: 'esc_sensor_current_correction', label: 'Current', unit: '%' },
+                { cli: 'esc_sensor_consumption_correction', label: 'Consumption', unit: '%' }
+            ] },
+
+            { title: 'RPM', rows: [
+                { feature: 'FREQ_SENSOR', label: 'RPM Sensor' },
+                { cli: 'dshot_bidir', label: 'Dshot RPM Telemetry' },
+                { ratio: 'main_rotor_gear_ratio', label: 'Main Rotor Gear Ratio' },
+                { ratio: 'tail_rotor_gear_ratio', label: 'Tail Rotor Gear Ratio' },
+                { cli: 'motor_poles', idx: 0, label: 'Main Motor Pole Count' },
+                /* The Configurator shows one pole-count row per motor the board
+                 * reports. A file cannot say how many motors there are, so the
+                 * tail type stands in for it: a motorised tail is the second
+                 * motor. */
+                { cli: 'motor_poles', idx: 1, label: 'Tail Motor Pole Count', when: 'motorisedTail' }
+            ] }
+        ]
+    },
+
     /* The Governor tab, from src/tabs/governor/*.svelte.
      *
      * This page is master-only. The per-profile governor gains the viewer used
@@ -287,4 +333,15 @@ window.RF_MIXER_INPUT_DEFAULTS = {
     SY: { min: -1250, max: 1250, rate: 250 },
     SC: { min: -1250, max: 1250, rate: 250 },
     ST: { min: 0, max: 1000, rate: 1000 }
+};
+
+/* Wording the Configurator keeps in JavaScript rather than in its markup, so
+ * tools/gen_enums.py cannot read it from a dropdown. Transcribed, with the
+ * entries each API version adds, from src/tabs/motors/state.svelte.js. */
+window.RF_ENUM_LISTS = {
+    escTelemetryProtocols: [
+        'Disabled', 'BLHeli32', 'Hobbywing Platinum V4 / FlyFun V5',
+        'Hobbywing Platinum V5', 'Scorpion', 'Kontronik', 'OMPHobby', 'ZTW',
+        'APD', 'OpenYGE', 'FLYROTOR', 'Graupner', 'XDFLY', 'FrSky F.BUS'
+    ]
 };

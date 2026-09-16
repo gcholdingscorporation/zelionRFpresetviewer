@@ -331,6 +331,7 @@
                 /* A derived row names the line it read in `from`; when that is
                  * a setting, the layout has accounted for it too. */
                 if (spec.from && /^[a-z0-9_]+$/.test(spec.from)) { out[spec.from] = true; }
+                if (spec.ratio) { out[spec.ratio] = true; }
             });
         }
         layout.boxes.forEach(function (box) { walk(box.rows); });
@@ -1045,6 +1046,8 @@
     /* The Configurator's own wording for an enumerated value. */
     function enumWord(key, value) {
         if (value === null || value === undefined) { return null; }
+        var list = (window.RF_ENUM_LISTS || {})[key];
+        if (list) { return list[value] === undefined ? null : list[value]; }
         var table = ((window.RF_ENUMS || {}).byId || {})[key];
         if (!table) { return null; }
         var word = table[String(value)];
@@ -1063,7 +1066,15 @@
 
     var WHEN = {
         variableTail: function () { return lookupIndex('tail_rotor_mode') === 0; },
-        motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; }
+        motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; },
+        /* The Configurator hides the PWM timing settings unless the throttle
+         * protocol is an analogue one (src/tabs/motors/state.svelte.js). */
+        notDshot: function () {
+            var proto = masterValue('motor_pwm_protocol');
+            var name = typeof proto === 'number'
+                ? (lut(meta('motor_pwm_protocol')) || [])[proto] : proto;
+            return !/^(DSHOT|PROSHOT)/.test(String(name));
+        }
     };
 
     function times(value, factor, places) {
@@ -1112,6 +1123,56 @@
         tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
     };
 
+    /* A switch the Configurator binds straight to the feature list, not to a
+     * setting: the RPM Sensor toggle on the Motors tab is `feature
+     * FREQ_SENSOR`. */
+    function featureRow(spec) {
+        if (!state.parsed) { return null; }
+        var on = false;
+        state.parsed.features.forEach(function (f) {
+            if (f.name === spec.feature) { on = f.enabled; }
+        });
+        if (state.onlyChanged) { return null; }
+        if (!matchesFilter('feature ' + spec.feature, spec.label)) { return null; }
+        return simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
+            'feature ' + spec.feature,
+            'Read from the file\u2019s `feature` lines, not from a `set`.');
+    }
+
+    /* A gear ratio is a pair, and the Configurator prints the ratio it works
+     * out to beside the two numbers. */
+    function ratioRow(spec) {
+        var pair = masterValue(spec.ratio);
+        if (!Array.isArray(pair) || pair.length < 2 || !pair[0]) { return null; }
+        if (state.onlyChanged) { return null; }
+        if (!matchesFilter(spec.ratio, spec.label)) { return null; }
+        var row = simpleRow(spec.label, spec.unit, pair[0] + ' : ' + pair[1], spec.ratio,
+            'The Configurator shows the pair and the ratio it works out to.');
+        row.querySelector('td.label').appendChild(
+            el('span', 'dim', '1:' + (pair[1] / pair[0]).toFixed(2)));
+        return row;
+    }
+
+    /* One settings row that is not backed by a single CLI setting. */
+    function simpleRow(label, unit, shown, provenance, why) {
+        var row = el('tr', 'is-derived');
+        var control = el('td', 'control');
+        control.appendChild(controlFor(provenance, null, shown));
+        row.appendChild(control);
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(label));
+        if (unit) { lab.appendChild(el('span', 'units', '[' + unit + ']')); }
+        lab.appendChild(el('span', 'cli-name', provenance));
+        row.appendChild(lab);
+        row.appendChild(el('td', 'was'));
+        var help = el('td', 'help');
+        var icon = el('div', 'helpicon', '?');
+        icon.title = why;
+        help.appendChild(icon);
+        row.appendChild(help);
+        return row;
+    }
+
     /* A row the Configurator computes rather than stores. It carries no "was",
      * because there is no single firmware default to compare one against. */
     function derivedRow(spec) {
@@ -1150,6 +1211,8 @@
         if (!versionOk(spec.ver)) { return null; }
         if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return null; }
         if (spec.calc) { return derivedRow(spec); }
+        if (spec.feature) { return featureRow(spec); }
+        if (spec.ratio) { return ratioRow(spec); }
         var m = meta(spec.cli);
         if (!m) { return null; }
         if (!matchesFilter(spec.cli, spec.label)) { return null; }
@@ -1220,7 +1283,7 @@
 
     /* A group is a toggle whose state the Configurator derives from whether the
      * setting it governs is switched on, with its members indented under it. */
-    function layoutGroup(spec, index, tbody) {
+    function layoutGroup(spec, index, tbody, flushSub) {
         var driver = meta(spec.on);
         var rows = [];
         spec.rows.forEach(function (r) {
@@ -1229,6 +1292,7 @@
         });
         if (!rows.length) { return 0; }
 
+        if (flushSub) { flushSub(); }
         if (driver && !state.onlyChanged && !state.filter) {
             var at = driver.s === 'master' ? null : index;
             var present = entryFor(spec.on, driver.s, at);
@@ -1316,6 +1380,19 @@
 
             var tbody = settingsTable(gui);
             var n = 0;
+            var pendingSub = null;
+
+            function flushSub() {
+                if (!pendingSub) { return; }
+                var head = el('tr', 'subheading');
+                var cell = el('td', 'label');
+                cell.colSpan = 4;
+                cell.textContent = pendingSub;
+                head.appendChild(cell);
+                tbody.appendChild(head);
+                pendingSub = null;
+            }
+
             box.rows.forEach(function (spec) {
                 if (spec.note) {
                     if (state.filter || state.onlyChanged) { return; }
@@ -1330,17 +1407,20 @@
                 if (spec.sub) {
                     if (state.filter || state.onlyChanged) { return; }
                     if (!versionOk(spec.ver)) { return; }
-                    var head = el('tr', 'subheading');
-                    var cell = el('td', 'label');
-                    cell.colSpan = 4;
-                    cell.textContent = spec.sub;
-                    head.appendChild(cell);
-                    tbody.appendChild(head);
+                    /* Held back until something lands under it: the
+                     * Configurator's sub-sections come and go with the
+                     * settings they head. */
+                    pendingSub = spec.sub;
                     return;
                 }
-                if (spec.group) { n += layoutGroup(spec, index, tbody); return; }
+                if (spec.group) {
+                    var before = n;
+                    n += layoutGroup(spec, index, tbody, flushSub);
+                    if (n > before) { pendingSub = null; }
+                    return;
+                }
                 var row = layoutRow(spec, index);
-                if (row) { tbody.appendChild(row); n++; }
+                if (row) { flushSub(); tbody.appendChild(row); n++; }
             });
             if (n) { grid.appendChild(gui); rendered += n; }
         });
