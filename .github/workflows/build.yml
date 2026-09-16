@@ -165,4 +165,16 @@ jobs:
             exit 0
           fi
           git commit -m 'CI: publish the Android APK [skip ci]'
-          git push origin HEAD:"${GITHUB_REF_NAME}"
+          # Someone may have pushed to the branch while the APK was building.
+          # Rebasing onto whatever is there now is safe because this commit
+          # touches one file nothing else writes; if the branch moves again in
+          # the meantime, the next run publishes the APK instead of this one
+          # failing the build over a race.
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            if git push origin HEAD:"${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo 'branch moved under us; the next run will publish the APK'
