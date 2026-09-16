@@ -3038,32 +3038,59 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         return a.mode !== 0 || (a.start !== a.end && a.start !== 900);
     }
 
+    /* The Modes tab, from src/tabs/auxiliary.html.
+     *
+     * The Configurator lists every mode the board offers, whether or not it is
+     * assigned, and in the order the firmware built its box list - which is a
+     * board and feature dependent order that reaches it over MSP and is not in
+     * a file. The modes are therefore listed by permanent id, which is the one
+     * order a file does determine.
+     */
     function renderModes() {
         var frag = document.createDocumentFragment();
         var boxes = extras('boxes');
         var used = rows('aux').filter(auxInUse);
 
-        var box = panel('Mode Ranges', used.length + ' of ' + rows('aux').length + ' slots in use');
+        var byMode = {};
+        used.forEach(function (a) { (byMode[a.mode] || (byMode[a.mode] = [])).push(a); });
+
+        var ids = Object.keys(boxes).map(Number).sort(function (a, b) { return a - b; });
+        var box = panel('Modes', used.length + ' of ' + rows('aux').length + ' slots in use');
         panelBody(box).appendChild(table(
-            ['Slot', 'Mode', 'Channel', 'Range', 'Logic', 'Linked to'],
-            used.map(function (a) {
+            ['Mode', 'Channel', 'Range', 'Logic', 'Linked to'],
+            ids.map(function (id) {
+                var entries = byMode[id];
+                if (!entries) {
+                    return [{ text: boxes[id], cls: 'name dim' }, '', '', '', ''];
+                }
+                var a = entries[0];
                 return [
-                    { text: a.slot, cls: 'name' },
-                    { text: boxes[a.mode] || ('id ' + a.mode), cls: 'name' },
+                    { text: boxes[id], cls: 'name' },
                     channelName(a.channel),
-                    a.start + ' – ' + a.end,
+                    a.start + ' \u2013 ' + a.end,
                     a.logic ? 'OR' : 'AND',
-                    a.linkedTo ? (boxes[a.linkedTo] || a.linkedTo) : '—'
+                    a.linkedTo ? (boxes[a.linkedTo] || a.linkedTo) : '\u2014'
                 ];
             }),
             { empty: 'No mode ranges are configured in this file.' }));
         frag.appendChild(box);
 
-        if (rows('aux').length && used.length < rows('aux').length) {
-            frag.appendChild(el('div', 'note',
-                (rows('aux').length - used.length) + ' further aux slots are present but ' +
-                'empty (mode 0 with a 900–900 range), which is how Rotorflight stores an ' +
-                'unused slot.'));
+        /* A mode with more than one range is rare but legal. */
+        var extra = [];
+        Object.keys(byMode).forEach(function (id) {
+            byMode[id].slice(1).forEach(function (a) { extra.push([id, a]); });
+        });
+        if (extra.length) {
+            var eb = panel('Further Ranges', extra.length + ' more');
+            panelBody(eb).appendChild(table(
+                ['Mode', 'Channel', 'Range', 'Logic'],
+                extra.map(function (pair) {
+                    var a = pair[1];
+                    return [{ text: boxes[pair[0]] || pair[0], cls: 'name' },
+                            channelName(a.channel), a.start + ' \u2013 ' + a.end,
+                            a.logic ? 'OR' : 'AND'];
+                })));
+            frag.appendChild(eb);
         }
 
         frag.appendChild(renderSettingsTab('modes', { quiet: true }));
