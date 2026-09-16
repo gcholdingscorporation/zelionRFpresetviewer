@@ -549,7 +549,9 @@ window.RF_LAYOUT = {
             /* The Configurator renders this box from a Svelte component in its
              * newer style, with sub-headings; the settings and their order are
              * from src/tabs/profiles/Governor.svelte. */
-            { title: 'Governor Settings', rows: [
+            /* This box is the Svelte governor component dropped into a legacy
+             * page, so it is laid out the Svelte way. */
+            { title: 'Governor Settings', style: 'svelte', rows: [
                 { cli: 'gov_headspeed', label: 'Full Headspeed', unit: 'rpm' },
                 { cli: 'gov_min_throttle', label: 'Minimum Throttle', unit: '%' },
                 { cli: 'gov_max_throttle', label: 'Maximum Throttle', unit: '%' },

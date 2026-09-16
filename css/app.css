@@ -401,17 +401,17 @@ table.settings_table td.label {
 
 /* On the tabs the Configurator has rewritten in Svelte the label comes first
  * and takes the width, with the control against the right edge of the box. */
-#content.style-svelte table.settings_table td.label {
+table.settings_table.svelte td.label {
     width: auto;
     padding-left: 2px;
 }
 
-#content.style-svelte table.settings_table td.control {
+table.settings_table.svelte td.control {
     text-align: right;
     padding-right: 2px;
 }
 
-#content.style-svelte table.settings_table tr.subheading td.label { padding-left: 2px; }
+table.settings_table.svelte tr.subheading td.label { padding-left: 2px; }
 
 table.settings_table tr:hover td.label { color: var(--darkAccent); }
 

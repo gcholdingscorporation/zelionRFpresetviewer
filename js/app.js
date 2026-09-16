@@ -291,7 +291,10 @@
     function settingsTable(box) {
         var body = panelBody(box);
         if (!body.firstChild) {
-            var table = el('table', 'settings_table');
+            /* The table carries the layout, so a page can hold a box from the
+             * Configurator's other visual language. */
+            var table = el('table', 'settings_table'
+                + (state.rowStyle === 'svelte' ? ' svelte' : ''));
             table.appendChild(el('tbody'));
             body.appendChild(table);
         }
@@ -1946,7 +1949,7 @@
             any = true;
             wrap.appendChild(el('div', 'notch-axis axis-' + axis,
                 axis.charAt(0).toUpperCase() + axis.slice(1)));
-            var table = el('table', 'settings_table');
+            var table = el('table', 'settings_table' + (state.rowStyle === 'svelte' ? ' svelte' : ''));
             var tbody = el('tbody');
             table.appendChild(tbody);
 
@@ -2010,7 +2013,7 @@
     function fallbacksBox() {
         var lines = rows('rxfail');
         if (!lines.length) { return null; }
-        var table = el('table', 'settings_table');
+        var table = el('table', 'settings_table' + (state.rowStyle === 'svelte' ? ' svelte' : ''));
         var tbody = el('tbody');
         table.appendChild(tbody);
         lines.forEach(function (line) {
@@ -2059,7 +2062,7 @@
 
         groups.forEach(function (group) {
             var live = group.s.filter(function (s) { return !!on[s.i]; }).length;
-            var table = el('table', 'settings_table');
+            var table = el('table', 'settings_table' + (state.rowStyle === 'svelte' ? ' svelte' : ''));
             var tbody = el('tbody');
             table.appendChild(tbody);
 
@@ -2125,7 +2128,7 @@
         var preset = presetFor(letters);
         var wrap = document.createDocumentFragment();
         if (preset) {
-            var head = el('table', 'settings_table');
+            var head = el('table', 'settings_table' + (state.rowStyle === 'svelte' ? ' svelte' : ''));
             var hbody = el('tbody');
             head.appendChild(hbody);
             hbody.appendChild(simpleRow('Apply Preset', null, preset, 'map',
@@ -2133,7 +2136,7 @@
             wrap.appendChild(head);
         }
 
-        var table = el('table', 'settings_table');
+        var table = el('table', 'settings_table' + (state.rowStyle === 'svelte' ? ' svelte' : ''));
         var tbody = el('tbody');
         table.appendChild(tbody);
 
@@ -2157,7 +2160,7 @@
         /* ChannelAssignment.svelte: the RSSI source reads ADC when the
          * feature is on, the named channel when one is set past the control
          * channels, and AUTO otherwise. */
-        var rt = el('table', 'settings_table');
+        var rt = el('table', 'settings_table' + (state.rowStyle === 'svelte' ? ' svelte' : ''));
         var rb = el('tbody');
         rt.appendChild(rb);
         var channel = masterValue('rssi_channel');
@@ -2189,6 +2192,10 @@
 
         layout.boxes.forEach(function (box) {
             if (!versionOk(box.ver)) { return; }
+            /* A page can carry a box from the other visual language: the
+             * Governor Settings box on Profiles is the Svelte governor
+             * component embedded in a legacy page. */
+            state.rowStyle = box.style || layout.style || 'legacy';
             var gui = panel(box.title, layout.scope
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
 
@@ -2282,6 +2289,7 @@
             if (n) { grid.appendChild(gui); rendered += n; }
         });
 
+        state.rowStyle = layout.style || 'legacy';
         frag.appendChild(grid);
 
         /* Anything the Configurator's page leaves out still belongs somewhere,
