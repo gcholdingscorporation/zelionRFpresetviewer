@@ -1062,6 +1062,9 @@ window.RF_LAYOUT = {
             ] }
         ]
     },
+    /* Divisors on rows below come from src/js/tabs/profiles.js, which divides
+     * on the way to the control: error_decay_time_ground / 10, the rescue
+     * collectives and times / 10, the hover altitude / 100. */
     profiles: {
         scope: 'profile',
 
@@ -1081,9 +1084,10 @@ window.RF_LAYOUT = {
 
         boxes: [
             { title: 'PID Controller Settings', rows: [
-                { cli: 'error_rotation', label: 'Piro Compensation' },
+                /* Dropped from the page at MSP API 12.9 (firmware 4.6). */
+                { cli: 'error_rotation', label: 'Piro Compensation', ver: '<4.6' },
                 { group: 'Ground Error Decay', on: 'error_decay_time_ground', rows: [
-                    { cli: 'error_decay_time_ground', label: 'Decay Time', unit: 's' }
+                    { cli: 'error_decay_time_ground', label: 'Decay Time', unit: 's', div: 10 }
                 ] },
                 { group: 'I-Term Relax', on: 'iterm_relax_type', rows: [
                     { cli: 'iterm_relax_type', label: 'I-term Relax Type' },
@@ -1107,9 +1111,9 @@ window.RF_LAYOUT = {
                 { group: 'Cyclic Cross-Coupling', on: 'cyclic_cross_coupling_gain', rows: [
                     { cli: 'cyclic_cross_coupling_gain', label: 'Cross-Coupling Gain' },
                     { cli: 'cyclic_cross_coupling_ratio', label: 'Cross-Coupling Ratio', unit: '%' },
-                    { cli: 'cyclic_cross_coupling_cutoff', label: 'Cross-Coupling Cutoff Frequency', unit: 'Hz' }
+                    { cli: 'cyclic_cross_coupling_cutoff', label: 'Cross-Coupling Cutoff Frequency', unit: 'Hz', div: 10, dp: 1 }
                 ] },
-                { cli: 'error_decay_time_cyclic', label: 'Error Decay time', unit: 's' },
+                { cli: 'error_decay_time_cyclic', label: 'Error Decay time', unit: 's', div: 10 },
                 { cli: 'error_decay_limit_cyclic', label: 'Error Decay maximum rate', unit: '°/s' }
             ] },
 
@@ -1120,9 +1124,11 @@ window.RF_LAYOUT = {
                 { cli: 'yaw_cyclic_ff_gain', label: 'Cyclic Feedforward Gain' },
                 { cli: 'yaw_collective_ff_gain', label: 'Collective Feedforward Gain' },
                 { cli: 'yaw_inertia_precomp_gain', label: 'Inertia Precomp Gain' },
-                { cli: 'yaw_inertia_precomp_cutoff', label: 'Inertia Precomp Cutoff', unit: 'Hz' },
-                { cli: 'error_decay_time_yaw', label: 'Error Decay time', unit: 's' },
-                { cli: 'error_decay_limit_yaw', label: 'Error Decay maximum rate', unit: '°/s' },
+                { cli: 'yaw_inertia_precomp_cutoff', label: 'Inertia Precomp Cutoff', unit: 'Hz', div: 10, dp: 1 },
+                /* The yaw error-decay controls exist in the Configurator's
+                 * markup but it never fills them in - the two lines that would
+                 * are commented out in profiles.js - so its page shows them
+                 * empty and this one leaves them to the box below. */
                 { cli: 'gov_tta_gain', label: 'Tail Torque Assist (TTA) gain' },
                 { cli: 'gov_tta_limit', label: 'Tail Torque Assist (TTA) limit', unit: '%' }
             ] },
@@ -1149,26 +1155,30 @@ window.RF_LAYOUT = {
 
             { title: 'Rescue Settings', rows: [
                 { group: 'Enable Rescue', on: 'rescue_mode', rows: [
-                    { cli: 'rescue_flip', label: 'Flip to upright' },
-                    { cli: 'rescue_pull_up_collective', label: 'Pull-up Collective', unit: '%' },
-                    { cli: 'rescue_pull_up_time', label: 'Pull-up Time', unit: 's' },
-                    { cli: 'rescue_climb_collective', label: 'Climb Collective', unit: '%' },
-                    { cli: 'rescue_climb_time', label: 'Climb Time', unit: 's' },
-                    { cli: 'rescue_hover_collective', label: 'Hover Collective', unit: '%' },
-                    { cli: 'rescue_flip_time', label: 'Flip Fail Time', unit: 's' },
-                    { cli: 'rescue_exit_time', label: 'Exit Time', unit: 's' },
+                    { cli: 'rescue_flip', label: 'Flip to upright', enum: 'rescueFlipMode' },
+                    { cli: 'rescue_pull_up_collective', label: 'Pull-up Collective', unit: '%', div: 10 },
+                    { cli: 'rescue_pull_up_time', label: 'Pull-up Time', unit: 's', div: 10, dp: 1 },
+                    { cli: 'rescue_climb_collective', label: 'Climb Collective', unit: '%', div: 10 },
+                    { cli: 'rescue_climb_time', label: 'Climb Time', unit: 's', div: 10, dp: 1 },
+                    { cli: 'rescue_hover_collective', label: 'Hover Collective', unit: '%', div: 10 },
+                    { cli: 'rescue_flip_time', label: 'Flip Fail Time', unit: 's', div: 10, dp: 1 },
+                    { cli: 'rescue_exit_time', label: 'Exit Time', unit: 's', div: 10, dp: 1 },
                     { cli: 'rescue_level_gain', label: 'Leveling Gain' },
                     { cli: 'rescue_flip_gain', label: 'Flip-to-Upright Gain' },
                     { cli: 'rescue_max_sp_rate', label: 'Max Levelling Rate', unit: '°/s' },
                     { cli: 'rescue_max_sp_accel', label: 'Max Leveling Acceleration', unit: '°/s²' }
                 ] },
-                { group: 'Enable Altitude Hold', on: 'rescue_hover_altitude', rows: [
-                    { cli: 'rescue_hover_altitude', label: 'Hover Altitude', unit: 'm' },
+                /* Altitude hold appears only for a rescue mode past CLIMB
+                 * (profiles.js: rescueMode > 1), and takes the maximum
+                 * collective with it. */
+                { group: 'Enable Altitude Hold', on: 'rescue_hover_altitude',
+                  when: 'rescueAltHold', rows: [
+                    { cli: 'rescue_hover_altitude', label: 'Hover Altitude', unit: 'm', div: 100, dp: 2 },
                     { cli: 'rescue_alt_p_gain', label: 'Altitude P-Gain' },
                     { cli: 'rescue_alt_i_gain', label: 'Altitude I-Gain' },
-                    { cli: 'rescue_alt_d_gain', label: 'Altitude D-Gain' }
-                ] },
-                { cli: 'rescue_max_collective', label: 'Maximum Collective', unit: '%' }
+                    { cli: 'rescue_alt_d_gain', label: 'Altitude D-Gain' },
+                    { cli: 'rescue_max_collective', label: 'Maximum Collective', unit: '%', div: 10 }
+                ] }
             ] },
 
             /* The Configurator renders this box from a Svelte component in its
@@ -1290,7 +1300,7 @@ window.RF_SCALES = {"4.5":{"dyn_notch_q":10,"gov_autorotation_bailout_time":10,"
 // Generated by tools/gen_enums.py from the Rotorflight
 // Configurator (GPL-3.0; see NOTICE). Do not edit by hand.
 // The wording the Configurator shows for an enumerated value.
-window.RF_ENUMS = {"byId":{"js:inputNames":{"0":"-","1":"Roll","10":"Commanded Throttle","11":"RC Channel Roll","12":"RC Channel Pitch","13":"RC Channel Yaw","14":"RC Channel Collective","15":"RC Channel Throttle","16":"RC Channel AUX1","17":"RC Channel AUX2","18":"RC Channel AUX3","19":"RC Channel #9","2":"Pitch","20":"RC Channel #10","21":"RC Channel #11","22":"RC Channel #12","23":"RC Channel #13","24":"RC Channel #14","25":"RC Channel #15","26":"RC Channel #16","27":"RC Channel #17","28":"RC Channel #18","3":"Yaw","4":"Collective","5":"Throttle","6":"Commanded Roll","7":"Commanded Pitch","8":"Commanded Yaw","9":"Commanded Collective"},"js:operNames":{"0":"-","1":"Set","2":"Add","3":"Mul"},"js:outputNames":{"0":"-","1":"Motor #1","10":"Servo #6","11":"Servo #7","12":"Servo #8","2":"Motor #2","3":"Motor #3","4":"Motor #4","5":"Servo #1","6":"Servo #2","7":"Servo #3","8":"Servo #4","9":"Servo #5"},"js:swashTypes":{"0":"None","1":"Direct","2":"CCPM 120\u00b0","3":"CCPM 135\u00b0","4":"CCPM 140\u00b0","5":"FPM 90\u00b0 L","6":"FPM 90\u00b0 V"},"ledStripProfile":{"0":"Race","1":"Beacon","2":"Status","3":"Status Alt"},"magalign":{"0":"Default"},"mixerAileronDirection":{"-1":"Reverse","1":"Normal"},"mixerCollectiveDirection":{"-1":"Reverse","1":"Normal"},"mixerElevatorDirection":{"-1":"Reverse","1":"Normal"},"mixerMainRotorDirection":{"0":"Clockwise","1":"Counter-Clockwise"},"mixerTailRotorDirection":{"-1":"Reverse","1":"Normal"},"mixerTailRotorMode":{"0":"Variable pitch","1":"Motorised","2":"Bidirectional"},"opt-connection-timeout":{"100":"100","1000":"1000","1500":"1500","2500":"2500","500":"500","5000":"5000"},"opt-dark-theme":{"0":"On","1":"Off","2":"Auto"}},"byName":{"swash_type":{"0":"None","1":"Direct","2":"CCPM 120\u00b0","3":"CCPM 135\u00b0","4":"CCPM 140\u00b0","5":"FPM 90\u00b0 L","6":"FPM 90\u00b0 V"}}};
+window.RF_ENUMS = {"byId":{"itermRelaxType":{"1":"RP","2":"RPY"},"js:inputNames":{"0":"-","1":"Roll","10":"Commanded Throttle","11":"RC Channel Roll","12":"RC Channel Pitch","13":"RC Channel Yaw","14":"RC Channel Collective","15":"RC Channel Throttle","16":"RC Channel AUX1","17":"RC Channel AUX2","18":"RC Channel AUX3","19":"RC Channel #9","2":"Pitch","20":"RC Channel #10","21":"RC Channel #11","22":"RC Channel #12","23":"RC Channel #13","24":"RC Channel #14","25":"RC Channel #15","26":"RC Channel #16","27":"RC Channel #17","28":"RC Channel #18","3":"Yaw","4":"Collective","5":"Throttle","6":"Commanded Roll","7":"Commanded Pitch","8":"Commanded Yaw","9":"Commanded Collective"},"js:operNames":{"0":"-","1":"Set","2":"Add","3":"Mul"},"js:outputNames":{"0":"-","1":"Motor #1","10":"Servo #6","11":"Servo #7","12":"Servo #8","2":"Motor #2","3":"Motor #3","4":"Motor #4","5":"Servo #1","6":"Servo #2","7":"Servo #3","8":"Servo #4","9":"Servo #5"},"js:swashTypes":{"0":"None","1":"Direct","2":"CCPM 120\u00b0","3":"CCPM 135\u00b0","4":"CCPM 140\u00b0","5":"FPM 90\u00b0 L","6":"FPM 90\u00b0 V"},"ledStripProfile":{"0":"Race","1":"Beacon","2":"Status","3":"Status Alt"},"magalign":{"0":"Default"},"mixerAileronDirection":{"-1":"Reverse","1":"Normal"},"mixerCollectiveDirection":{"-1":"Reverse","1":"Normal"},"mixerElevatorDirection":{"-1":"Reverse","1":"Normal"},"mixerMainRotorDirection":{"0":"Clockwise","1":"Counter-Clockwise"},"mixerTailRotorDirection":{"-1":"Reverse","1":"Normal"},"mixerTailRotorMode":{"0":"Variable pitch","1":"Motorised","2":"Bidirectional"},"opt-connection-timeout":{"100":"100","1000":"1000","1500":"1500","2500":"2500","500":"500","5000":"5000"},"opt-dark-theme":{"0":"On","1":"Off","2":"Auto"},"rescueFlipMode":{"0":"No-Flip","1":"Flip"}},"byName":{"iterm_relax_type":{"1":"RP","2":"RPY"},"swash_type":{"0":"None","1":"Direct","2":"CCPM 120\u00b0","3":"CCPM 135\u00b0","4":"CCPM 140\u00b0","5":"FPM 90\u00b0 L","6":"FPM 90\u00b0 V"}}};
 
 </script>
 <script>
@@ -3500,6 +3510,12 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
         },
         dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        rescueAltHold: function () {
+            var present = entryFor('rescue_mode', 'profile', state.profile);
+            var m = meta('rescue_mode');
+            var raw = present ? present.value : (m ? m.d : null);
+            return lutIndexOf(m, raw) > 1;
+        },
         cyclicRing: function () {
             return rateProfileValue('cyclic_ring', state.rateProfile) > 0;
         },
@@ -3770,6 +3786,8 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     /* A group is a toggle whose state the Configurator derives from whether the
      * setting it governs is switched on, with its members indented under it. */
     function layoutGroup(spec, index, tbody, flushSub) {
+        if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return 0; }
+        if (!versionOk(spec.ver)) { return 0; }
         var driver = meta(spec.on);
         var rows = [];
         spec.rows.forEach(function (r) {
@@ -4050,6 +4068,16 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         });
 
         frag.appendChild(grid);
+
+        /* Anything the Configurator's page leaves out still belongs somewhere,
+         * so it follows in its own box rather than disappearing. */
+        frag.appendChild(renderSettingsTab(tabId, {
+            quiet: true,
+            scope: layout.scope || 'master',
+            skip: layoutNames(tabId),
+            hint: 'not on the Configurator\u2019s page'
+        }));
+
         if (!rendered) { frag.appendChild(el('div', 'empty-note', emptyMessage())); }
         return frag;
     }

@@ -1275,6 +1275,12 @@
             return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
         },
         dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        rescueAltHold: function () {
+            var present = entryFor('rescue_mode', 'profile', state.profile);
+            var m = meta('rescue_mode');
+            var raw = present ? present.value : (m ? m.d : null);
+            return lutIndexOf(m, raw) > 1;
+        },
         cyclicRing: function () {
             return rateProfileValue('cyclic_ring', state.rateProfile) > 0;
         },
@@ -1545,6 +1551,8 @@
     /* A group is a toggle whose state the Configurator derives from whether the
      * setting it governs is switched on, with its members indented under it. */
     function layoutGroup(spec, index, tbody, flushSub) {
+        if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return 0; }
+        if (!versionOk(spec.ver)) { return 0; }
         var driver = meta(spec.on);
         var rows = [];
         spec.rows.forEach(function (r) {
@@ -1825,6 +1833,16 @@
         });
 
         frag.appendChild(grid);
+
+        /* Anything the Configurator's page leaves out still belongs somewhere,
+         * so it follows in its own box rather than disappearing. */
+        frag.appendChild(renderSettingsTab(tabId, {
+            quiet: true,
+            scope: layout.scope || 'master',
+            skip: layoutNames(tabId),
+            hint: 'not on the Configurator\u2019s page'
+        }));
+
         if (!rendered) { frag.appendChild(el('div', 'empty-note', emptyMessage())); }
         return frag;
     }

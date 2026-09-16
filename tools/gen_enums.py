@@ -82,17 +82,21 @@ def selects_from_html(cfg, messages, by_id):
             if not sid:
                 continue
             options = {}
-            for o in re.finditer(r'<option\b([^>]*)>(.*?)</option>',
+            # Options come both ways in these tabs: with a closing tag and
+            # self-closing with the text left to the i18n attribute.
+            for o in re.finditer(r'<option\b([^>]*?)/>|<option\b([^>]*)>(.*?)</option>',
                                  m.group(2), re.S):
-                val = re.search(r'value="([^"]*)"', o.group(1))
+                attrs = o.group(1) if o.group(1) is not None else o.group(2)
+                body = o.group(3) or ''
+                val = re.search(r'value="([^"]*)"', attrs)
                 if not val:
                     continue
-                key = re.search(r'i18n="([^"]+)"', o.group(1))
+                key = re.search(r'i18n="([^"]+)"', attrs)
                 if key:
                     word = messages.get(key.group(1))
                 else:
                     word = re.sub(r'\s+', ' ', html.unescape(
-                        re.sub(r'<[^>]+>', '', o.group(2)))).strip()
+                        re.sub(r'<[^>]+>', '', body))).strip()
                 if word:
                     options[val.group(1)] = word
             if options:

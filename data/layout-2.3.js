@@ -287,6 +287,9 @@ window.RF_LAYOUT = {
             ] }
         ]
     },
+    /* Divisors on rows below come from src/js/tabs/profiles.js, which divides
+     * on the way to the control: error_decay_time_ground / 10, the rescue
+     * collectives and times / 10, the hover altitude / 100. */
     profiles: {
         scope: 'profile',
 
@@ -306,9 +309,10 @@ window.RF_LAYOUT = {
 
         boxes: [
             { title: 'PID Controller Settings', rows: [
-                { cli: 'error_rotation', label: 'Piro Compensation' },
+                /* Dropped from the page at MSP API 12.9 (firmware 4.6). */
+                { cli: 'error_rotation', label: 'Piro Compensation', ver: '<4.6' },
                 { group: 'Ground Error Decay', on: 'error_decay_time_ground', rows: [
-                    { cli: 'error_decay_time_ground', label: 'Decay Time', unit: 's' }
+                    { cli: 'error_decay_time_ground', label: 'Decay Time', unit: 's', div: 10 }
                 ] },
                 { group: 'I-Term Relax', on: 'iterm_relax_type', rows: [
                     { cli: 'iterm_relax_type', label: 'I-term Relax Type' },
@@ -332,9 +336,9 @@ window.RF_LAYOUT = {
                 { group: 'Cyclic Cross-Coupling', on: 'cyclic_cross_coupling_gain', rows: [
                     { cli: 'cyclic_cross_coupling_gain', label: 'Cross-Coupling Gain' },
                     { cli: 'cyclic_cross_coupling_ratio', label: 'Cross-Coupling Ratio', unit: '%' },
-                    { cli: 'cyclic_cross_coupling_cutoff', label: 'Cross-Coupling Cutoff Frequency', unit: 'Hz' }
+                    { cli: 'cyclic_cross_coupling_cutoff', label: 'Cross-Coupling Cutoff Frequency', unit: 'Hz', div: 10, dp: 1 }
                 ] },
-                { cli: 'error_decay_time_cyclic', label: 'Error Decay time', unit: 's' },
+                { cli: 'error_decay_time_cyclic', label: 'Error Decay time', unit: 's', div: 10 },
                 { cli: 'error_decay_limit_cyclic', label: 'Error Decay maximum rate', unit: '°/s' }
             ] },
 
@@ -345,9 +349,11 @@ window.RF_LAYOUT = {
                 { cli: 'yaw_cyclic_ff_gain', label: 'Cyclic Feedforward Gain' },
                 { cli: 'yaw_collective_ff_gain', label: 'Collective Feedforward Gain' },
                 { cli: 'yaw_inertia_precomp_gain', label: 'Inertia Precomp Gain' },
-                { cli: 'yaw_inertia_precomp_cutoff', label: 'Inertia Precomp Cutoff', unit: 'Hz' },
-                { cli: 'error_decay_time_yaw', label: 'Error Decay time', unit: 's' },
-                { cli: 'error_decay_limit_yaw', label: 'Error Decay maximum rate', unit: '°/s' },
+                { cli: 'yaw_inertia_precomp_cutoff', label: 'Inertia Precomp Cutoff', unit: 'Hz', div: 10, dp: 1 },
+                /* The yaw error-decay controls exist in the Configurator's
+                 * markup but it never fills them in - the two lines that would
+                 * are commented out in profiles.js - so its page shows them
+                 * empty and this one leaves them to the box below. */
                 { cli: 'gov_tta_gain', label: 'Tail Torque Assist (TTA) gain' },
                 { cli: 'gov_tta_limit', label: 'Tail Torque Assist (TTA) limit', unit: '%' }
             ] },
@@ -374,26 +380,30 @@ window.RF_LAYOUT = {
 
             { title: 'Rescue Settings', rows: [
                 { group: 'Enable Rescue', on: 'rescue_mode', rows: [
-                    { cli: 'rescue_flip', label: 'Flip to upright' },
-                    { cli: 'rescue_pull_up_collective', label: 'Pull-up Collective', unit: '%' },
-                    { cli: 'rescue_pull_up_time', label: 'Pull-up Time', unit: 's' },
-                    { cli: 'rescue_climb_collective', label: 'Climb Collective', unit: '%' },
-                    { cli: 'rescue_climb_time', label: 'Climb Time', unit: 's' },
-                    { cli: 'rescue_hover_collective', label: 'Hover Collective', unit: '%' },
-                    { cli: 'rescue_flip_time', label: 'Flip Fail Time', unit: 's' },
-                    { cli: 'rescue_exit_time', label: 'Exit Time', unit: 's' },
+                    { cli: 'rescue_flip', label: 'Flip to upright', enum: 'rescueFlipMode' },
+                    { cli: 'rescue_pull_up_collective', label: 'Pull-up Collective', unit: '%', div: 10 },
+                    { cli: 'rescue_pull_up_time', label: 'Pull-up Time', unit: 's', div: 10, dp: 1 },
+                    { cli: 'rescue_climb_collective', label: 'Climb Collective', unit: '%', div: 10 },
+                    { cli: 'rescue_climb_time', label: 'Climb Time', unit: 's', div: 10, dp: 1 },
+                    { cli: 'rescue_hover_collective', label: 'Hover Collective', unit: '%', div: 10 },
+                    { cli: 'rescue_flip_time', label: 'Flip Fail Time', unit: 's', div: 10, dp: 1 },
+                    { cli: 'rescue_exit_time', label: 'Exit Time', unit: 's', div: 10, dp: 1 },
                     { cli: 'rescue_level_gain', label: 'Leveling Gain' },
                     { cli: 'rescue_flip_gain', label: 'Flip-to-Upright Gain' },
                     { cli: 'rescue_max_sp_rate', label: 'Max Levelling Rate', unit: '°/s' },
                     { cli: 'rescue_max_sp_accel', label: 'Max Leveling Acceleration', unit: '°/s²' }
                 ] },
-                { group: 'Enable Altitude Hold', on: 'rescue_hover_altitude', rows: [
-                    { cli: 'rescue_hover_altitude', label: 'Hover Altitude', unit: 'm' },
+                /* Altitude hold appears only for a rescue mode past CLIMB
+                 * (profiles.js: rescueMode > 1), and takes the maximum
+                 * collective with it. */
+                { group: 'Enable Altitude Hold', on: 'rescue_hover_altitude',
+                  when: 'rescueAltHold', rows: [
+                    { cli: 'rescue_hover_altitude', label: 'Hover Altitude', unit: 'm', div: 100, dp: 2 },
                     { cli: 'rescue_alt_p_gain', label: 'Altitude P-Gain' },
                     { cli: 'rescue_alt_i_gain', label: 'Altitude I-Gain' },
-                    { cli: 'rescue_alt_d_gain', label: 'Altitude D-Gain' }
-                ] },
-                { cli: 'rescue_max_collective', label: 'Maximum Collective', unit: '%' }
+                    { cli: 'rescue_alt_d_gain', label: 'Altitude D-Gain' },
+                    { cli: 'rescue_max_collective', label: 'Maximum Collective', unit: '%', div: 10 }
+                ] }
             ] },
 
             /* The Configurator renders this box from a Svelte component in its
