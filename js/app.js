@@ -1762,6 +1762,33 @@
         return row;
     }
 
+    /* The failsafe channel fallbacks. These are `rxfail` lines, one per
+     * channel: `a` auto, `h` hold, `s <value>` a fixed pulse width. The
+     * Configurator offers Auto only for the five control channels
+     * (src/tabs/failsafe/Failsafe.svelte). */
+    var FALLBACK_MODES = { a: 'Auto', h: 'Hold', s: 'Set' };
+    var CONTROL_AXES = ['Roll', 'Pitch', 'Yaw', 'Collective', 'Throttle'];
+
+    function fallbacksBox() {
+        var lines = rows('rxfail');
+        if (!lines.length) { return null; }
+        var table = el('table', 'settings_table');
+        var tbody = el('tbody');
+        table.appendChild(tbody);
+        lines.forEach(function (line) {
+            var name = line.channel < CONTROL_AXES.length
+                ? CONTROL_AXES[line.channel]
+                : 'AUX ' + (line.channel - CONTROL_AXES.length + 1);
+            var mode = FALLBACK_MODES[line.mode] || line.mode;
+            var shown = line.mode === 's' && line.value !== null
+                ? mode + ' ' + line.value : mode;
+            tbody.appendChild(simpleRow(name, null, shown,
+                'rxfail ' + line.channel,
+                'From the file\u2019s `rxfail` line for this channel.'));
+        });
+        return table;
+    }
+
     /* A tab whose layout is transcribed from the Configurator. */
     function renderLayoutTab(tabId) {
         var layout = (window.RF_LAYOUT || {})[tabId];
@@ -1785,6 +1812,12 @@
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
 
             if (box.when && WHEN[box.when] && !WHEN[box.when]()) { return; }
+
+            if (box.fallbacks) {
+                var fb = fallbacksBox();
+                if (fb) { panelBody(gui).appendChild(fb); grid.appendChild(gui); rendered++; }
+                return;
+            }
 
             if (box.notches) {
                 var boxes = notchesBox(['roll', 'pitch', 'yaw']);

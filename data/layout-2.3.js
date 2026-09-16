@@ -19,6 +19,19 @@
 
 window.RF_LAYOUT = {
 
+    /* The Failsafe tab, from src/tabs/failsafe/Failsafe.svelte. The channel
+     * fallbacks are `rxfail` lines rather than settings, so the box that holds
+     * them is built in app.js; only the pulse limits are settings. */
+    failsafe: {
+        boxes: [
+            { title: 'Pulse Width Limit', rows: [
+                { cli: 'rx_pulse_min', label: 'Minimum Pulse Width', unit: 'μs' },
+                { cli: 'rx_pulse_max', label: 'Maximum Pulse Width', unit: 'μs' }
+            ] },
+            { title: 'Channel Fallback', fallbacks: true, rows: [] }
+        ]
+    },
+
     /* The Configuration tab, from src/tabs/configuration.html and
      * src/js/tabs/configuration.js.
      *
