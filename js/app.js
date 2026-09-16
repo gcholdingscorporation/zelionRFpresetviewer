@@ -376,7 +376,8 @@
         var index = scope === 'profile' ? state.profile
                   : scope === 'rateprofile' ? state.rateProfile : null;
 
-        if (scope !== 'master') { frag.appendChild(profileBar(scope)); }
+        /* The caller may have drawn the profile selector already. */
+        if (scope !== 'master' && !opts.noProfileBar) { frag.appendChild(profileBar(scope)); }
 
         var grid = el('div', 'columns');
         var rendered = 0;
@@ -962,6 +963,7 @@
         frag.appendChild(renderSettingsTab('rates', {
             quiet: true,
             scope: 'rateprofile',
+            noProfileBar: true,
             skip: RATES_COVERED,
             hint: 'not on the Configurator’s Rates tab'
         }));
@@ -2226,6 +2228,7 @@
         frag.appendChild(renderSettingsTab(tabId, {
             quiet: true,
             scope: layout.scope || 'master',
+            noProfileBar: true,
             skip: layoutNames(tabId),
             hint: 'not on the Configurator\u2019s page'
         }));

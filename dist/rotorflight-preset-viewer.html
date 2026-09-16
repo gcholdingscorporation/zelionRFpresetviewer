@@ -2763,7 +2763,8 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         var index = scope === 'profile' ? state.profile
                   : scope === 'rateprofile' ? state.rateProfile : null;
 
-        if (scope !== 'master') { frag.appendChild(profileBar(scope)); }
+        /* The caller may have drawn the profile selector already. */
+        if (scope !== 'master' && !opts.noProfileBar) { frag.appendChild(profileBar(scope)); }
 
         var grid = el('div', 'columns');
         var rendered = 0;
@@ -3349,6 +3350,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         frag.appendChild(renderSettingsTab('rates', {
             quiet: true,
             scope: 'rateprofile',
+            noProfileBar: true,
             skip: RATES_COVERED,
             hint: 'not on the Configurator’s Rates tab'
         }));
@@ -4613,6 +4615,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         frag.appendChild(renderSettingsTab(tabId, {
             quiet: true,
             scope: layout.scope || 'master',
+            noProfileBar: true,
             skip: layoutNames(tabId),
             hint: 'not on the Configurator\u2019s page'
         }));
