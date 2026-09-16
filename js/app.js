@@ -708,26 +708,43 @@
 
     // ----------------------------------------------------------- servos tab
 
+    /* The Configurator's Servo Configuration table, from src/tabs/servos.html.
+     * The CLI prints the last field as one number; the Configurator splits it
+     * into the two switches it actually is (src/js/tabs/servos.js). */
+    var SERVO_FLAG_REVERSE = 1;
+    var SERVO_FLAG_GEOCOR = 2;
+
+    function flagSwitch(on) {
+        var sw = el('div', 'switch' + (on ? ' on' : ''));
+        sw.setAttribute('role', 'img');
+        sw.setAttribute('aria-label', on ? 'on' : 'off');
+        sw.title = on ? 'on' : 'off';
+        return sw;
+    }
+
     function renderServos() {
         var frag = document.createDocumentFragment();
-        var box = panel('Servos', rows('servo').length + ' configured');
+        var servos = rows('servo');
+        var box = panel('Servo Configuration', servos.length + ' configured');
         panelBody(box).appendChild(table(
-            ['Servo', 'Centre', 'Min', 'Max', 'Neg scale', 'Pos scale',
-             'Rate (Hz)', 'Speed', 'Flags'],
-            rows('servo').map(function (s) {
+            ['Servo', 'Center', 'Min', 'Max', 'Scale neg', 'Scale pos',
+             'Rate [Hz]', 'Speed [ms]', 'Reverse', 'Geo cor'],
+            servos.map(function (s) {
+                var flags = Number(s.flags) || 0;
                 return [
-                    { text: 'Servo ' + s.index, cls: 'name' },
+                    { text: '#' + s.index, cls: 'name' },
                     s.mid, s.min, s.max, s.rneg, s.rpos, s.rate, s.speed,
-                    { text: '0x' + Number(s.flags).toString(16), cls: 'dim' }
+                    flagSwitch(flags & SERVO_FLAG_REVERSE),
+                    flagSwitch(flags & SERVO_FLAG_GEOCOR)
                 ];
             }),
             { empty: 'No servo lines in this file (all servos at their defaults).' }));
         frag.appendChild(box);
         frag.appendChild(el('div', 'note',
-            'Centre, min and max are in the firmware\'s servo units as printed by the CLI ' +
+            'Center, min and max are in the firmware\'s servo units, as the CLI prints them ' +
             '(<code>servo &lt;n&gt; &lt;mid&gt; &lt;min&gt; &lt;max&gt; &lt;rneg&gt; ' +
-            '&lt;rpos&gt; &lt;rate&gt; &lt;speed&gt; &lt;flags&gt;</code>). ' +
-            'They are shown exactly as stored, not converted.'));
+            '&lt;rpos&gt; &lt;rate&gt; &lt;speed&gt; &lt;flags&gt;</code>); the Configurator ' +
+            'shows the same numbers. Reverse and Geo cor are bits 0 and 1 of the flags field.'));
         frag.appendChild(renderSettingsTab('servos', { quiet: true }));
         return frag;
     }
@@ -1034,6 +1051,16 @@
         return word === undefined ? null : word;
     }
 
+    /* `>=4.6` / `<4.6`: the Configurator guards a good deal of its markup on
+     * MSP API 12.9, which arrived with firmware 4.6, and the two generations
+     * lay the same page out differently. */
+    function versionOk(rule) {
+        if (!rule) { return true; }
+        var m = /^(>=|<)(.+)$/.exec(rule);
+        if (!m) { return true; }
+        return m[1] === '>=' ? state.dbKey >= m[2] : state.dbKey < m[2];
+    }
+
     var WHEN = {
         variableTail: function () { return lookupIndex('tail_rotor_mode') === 0; },
         motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; }
@@ -1120,6 +1147,7 @@
     }
 
     function layoutRow(spec, index) {
+        if (!versionOk(spec.ver)) { return null; }
         if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return null; }
         if (spec.calc) { return derivedRow(spec); }
         var m = meta(spec.cli);
@@ -1157,6 +1185,10 @@
         var lab = el('td', 'label');
         lab.appendChild(document.createTextNode(spec.label));
         if (spec.unit) { lab.appendChild(el('span', 'units', '[' + spec.unit + ']')); }
+        /* A ramp time is also printed as the rate it works out to. */
+        if (spec.rate && versionOk(spec.rate) && Number(shown) > 0) {
+            lab.appendChild(el('span', 'dim', (100 / Number(shown)).toFixed(1) + ' %/s'));
+        }
         var cli = spec.cli + (spec.idx === undefined ? '' : '[' + spec.idx + ']');
         lab.appendChild(el('span', 'cli-name', cli));
         row.appendChild(lab);
@@ -1224,6 +1256,37 @@
         return rows.length;
     }
 
+    /* The governor bypass curve. The firmware stores nine points at twice
+     * their percentage; ThrottleCurve.svelte shows five when every odd point
+     * is the rounded average of its neighbours, which is how the Configurator
+     * decides the "Points" figure. */
+    function curveBox(name) {
+        var raw = masterValue(name);
+        if (!Array.isArray(raw)) { return null; }
+
+        var points = raw;
+        var reducible = raw.length === 9;
+        for (var i = 0; reducible && i < raw.length - 2; i += 2) {
+            if (Math.round((raw[i] + raw[i + 2]) / 2) !== raw[i + 1]) { reducible = false; }
+        }
+        if (reducible) { points = [raw[0], raw[2], raw[4], raw[6], raw[8]]; }
+
+        var wrap = el('div', 'curve-box');
+        wrap.appendChild(el('div', 'curve-points', 'Points ' + points.length));
+        var list = el('ol', 'curve-list');
+        points.forEach(function (v) {
+            list.appendChild(el('li', null, (v / 2).toFixed(1) + '%'));
+        });
+        wrap.appendChild(list);
+        var note = el('div', 'note',
+            'The Configurator also shows a live \u201cThrottle:\u201d readout here; that is '
+            + 'the current stick position, not something a file can carry. Stored as ');
+        note.appendChild(el('code', null, name + ' = ' + raw.join(',')));
+        note.appendChild(document.createTextNode('.'));
+        wrap.appendChild(note);
+        return wrap;
+    }
+
     /* A tab whose layout is transcribed from the Configurator. */
     function renderLayoutTab(tabId) {
         var layout = (window.RF_LAYOUT || {})[tabId];
@@ -1244,11 +1307,29 @@
         layout.boxes.forEach(function (box) {
             var gui = panel(box.title, layout.scope
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
+
+            if (box.curve) {
+                var curve = curveBox(box.curve);
+                if (curve) { panelBody(gui).appendChild(curve); grid.appendChild(gui); rendered++; }
+                return;
+            }
+
             var tbody = settingsTable(gui);
             var n = 0;
             box.rows.forEach(function (spec) {
+                if (spec.note) {
+                    if (state.filter || state.onlyChanged) { return; }
+                    var noteRow = el('tr', 'note-row');
+                    var noteCell = el('td', 'label');
+                    noteCell.colSpan = 4;
+                    noteCell.appendChild(el('div', 'inline-note', spec.note));
+                    noteRow.appendChild(noteCell);
+                    tbody.appendChild(noteRow);
+                    return;
+                }
                 if (spec.sub) {
                     if (state.filter || state.onlyChanged) { return; }
+                    if (!versionOk(spec.ver)) { return; }
                     var head = el('tr', 'subheading');
                     var cell = el('td', 'label');
                     cell.colSpan = 4;
@@ -1283,7 +1364,7 @@
         cli: renderCli
     };
 
-    var SCOPED = { profiles: 'profile', governor: 'profile', rescue: 'profile', rates: 'rateprofile' };
+    var SCOPED = { profiles: 'profile', rescue: 'profile', rates: 'rateprofile' };
 
     function tabContentCount(tabId) {
         if (!state.parsed) { return 0; }

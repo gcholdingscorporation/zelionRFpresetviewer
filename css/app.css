@@ -649,3 +649,27 @@ pre.cli .ln.hit { background: #fff0b3; color: #000; }
 table.settings_table tr.suboption td.control { padding-left: 22px; }
 table.settings_table tr.subheading td { font-weight: 700; color: var(--defaultText); padding-top: 8px; }
 table.settings_table tr.group-head td.label { font-weight: 600; }
+
+/* A derived row is computed from the file rather than read from one setting. */
+tr.is-derived td.control input { font-style: normal; }
+tr.is-derived td.label .cli-name { font-style: italic; }
+
+.inline-note {
+    background: var(--accentLight, #e8f2f8);
+    border-left: 3px solid var(--accent);
+    padding: 7px 10px;
+    margin: 4px 0 8px;
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+td.label span.dim {
+    margin-left: 8px;
+    color: var(--quietHeader);
+    font-size: 10px;
+}
+
+.curve-box { padding: 4px 2px; }
+.curve-points { font-weight: bold; margin-bottom: 6px; }
+.curve-list { margin: 0 0 8px 20px; padding: 0; }
+.curve-list li { padding: 1px 0; font-variant-numeric: tabular-nums; }

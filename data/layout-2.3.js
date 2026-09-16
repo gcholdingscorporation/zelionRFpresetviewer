@@ -19,6 +19,63 @@
 
 window.RF_LAYOUT = {
 
+    /* The Governor tab, from src/tabs/governor/*.svelte.
+     *
+     * This page is master-only. The per-profile governor gains the viewer used
+     * to repeat here belong on the Profiles tab, which is where the
+     * Configurator puts them, and where its own note on this page points.
+     *
+     * Two firmware generations share the page and differ in more than scaling:
+     * 4.6 moved the throttle settings into their own sub-section and dropped
+     * the signal timeouts, so rows carry `ver`.
+     */
+    governor: {
+        boxes: [
+            { title: 'General', rows: [
+                { note: 'The Governor has both global and profile parameters. ' +
+                        'See the Profiles tab for profile specific parameters.' },
+                { cli: 'gov_mode', label: 'Governor Mode' },
+                { cli: 'gov_zero_throttle_timeout', label: 'Throttle Signal Timeout', unit: 's', ver: '<4.6' },
+                { cli: 'gov_lost_headspeed_timeout', label: 'Headspeed Signal Timeout', unit: 's', ver: '<4.6' },
+                { cli: 'gov_handover_throttle', label: 'Handover Throttle', unit: '%', ver: '<4.6' },
+                { cli: 'gov_spoolup_min_throttle', label: 'Spoolup Minimum Throttle', unit: '%', ver: '<4.6' },
+                { cli: 'gov_autorotation_timeout', label: 'Autorotation Timeout', unit: 's' },
+                { cli: 'gov_autorotation_min_entry_time', label: 'Autorotation Minimum Flight Time',
+                  unit: 's', ver: '<4.6' },
+                { cli: 'gov_throttle_hold_timeout', label: 'Throttle Hold Timeout', unit: 's', ver: '>=4.6' },
+                { sub: 'Throttle', ver: '>=4.6' },
+                { cli: 'gov_throttle_type', label: 'Throttle Type', ver: '>=4.6' },
+                { cli: 'gov_idle_throttle', label: 'Idle Throttle', unit: '%', ver: '>=4.6' },
+                { cli: 'gov_auto_throttle', label: 'Auto Throttle', unit: '%', ver: '>=4.6' },
+                { cli: 'gov_handover_throttle', label: 'Handover Throttle', unit: '%', ver: '>=4.6' }
+            ] },
+
+            /* Ramps.svelte prints the equivalent rate beside each time as
+             * 100 / seconds, but only from 4.6. */
+            { title: 'Motor Ramp', rows: [
+                { cli: 'gov_startup_time', label: 'Startup Time', unit: 's', rate: '>=4.6' },
+                { cli: 'gov_spoolup_time', label: 'Spoolup Time', unit: 's', rate: '>=4.6' },
+                { cli: 'gov_spooldown_time', label: 'Spooldown Time', unit: 's', rate: '>=4.6' },
+                { cli: 'gov_tracking_time', label: 'Tracking Time', unit: 's', rate: '>=4.6' },
+                { cli: 'gov_recovery_time', label: 'Recovery Time', unit: 's', rate: '>=4.6' },
+                { cli: 'gov_autorotation_bailout_time', label: 'Bailout Time', unit: 's', ver: '<4.6' }
+            ] },
+
+            /* ThrottleCurve.svelte stores nine points at twice their percentage
+             * and collapses them to five for display when every odd point is
+             * the average of its neighbours. */
+            { title: 'Governor Bypass Throttle Curve', curve: 'gov_bypass_throttle', rows: [] },
+
+            { title: 'Filters', rows: [
+                { cli: 'gov_rpm_filter', label: 'Headspeed Filter Cutoff', unit: 'Hz' },
+                { cli: 'gov_pwr_filter', label: 'Battery Voltage Filter Cutoff', unit: 'Hz' },
+                { cli: 'gov_tta_filter', label: 'TTA Bandwidth', unit: 'Hz' },
+                { cli: 'gov_ff_filter', label: 'Precomp Bandwidth', unit: 'Hz' },
+                { cli: 'gov_d_filter', label: 'D-Term Cutoff', unit: 'Hz', ver: '>=4.6' }
+            ] }
+        ]
+    },
+
     /* The Mixer tab, from src/tabs/mixer.html and src/js/tabs/mixer.js.
      *
      * Most of this page is not a setting. The Configurator derives it from the
