@@ -294,6 +294,14 @@
                 break;
             }
 
+            /* `map AECR1T23` - one letter per RC channel, saying which
+             * control that channel carries. The letters are the firmware's
+             * own (rx.c: "AERCT12345678"). */
+            case 'map': {
+                out.row('map', { line: lineNo, letters: rest.trim() });
+                break;
+            }
+
             case 'rxrange': {
                 var rw = nums(splitWords(rest));
                 out.row('rxrange', { line: lineNo, channel: rw[0], min: rw[1], max: rw[2] });

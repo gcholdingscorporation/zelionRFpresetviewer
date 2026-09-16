@@ -19,6 +19,60 @@
 
 window.RF_LAYOUT = {
 
+    /* The Receiver tab, from src/tabs/receiver/*.svelte.
+     *
+     * The channel assignment is the `map` line rather than a setting, and the
+     * live stick positions and the model preview beside it are telemetry, so
+     * only the assignment itself is here.
+     */
+    receiver: {
+        boxes: [
+            { title: 'Protocol', rows: [
+                { cli: 'serialrx_provider', label: 'Receiver Protocol', enum: 'rxProtocols' },
+                { sub: 'Signaling' },
+                { cli: 'serialrx_inverted', label: 'Inverted' },
+                { cli: 'serialrx_halfduplex', label: 'Half-Duplex' },
+                { cli: 'serialrx_pinswap', label: 'Pin Swap' }
+            ] },
+
+            { title: 'Channel Range', rows: [
+                { cli: 'rc_center', label: 'Stick Center', unit: 'μs' },
+                { cli: 'rc_deflection', label: 'Stick Travel', unit: 'μs' },
+                { cli: 'deadband', label: 'Cyclic Deadband', unit: 'μs' },
+                { cli: 'yaw_deadband', label: 'Yaw Deadband', unit: 'μs' },
+                { sub: 'Throttle Channel' },
+                /* The switch is on when both ends are zero, and the two
+                 * endpoints disappear with it (ChannelRange.svelte). */
+                { toggle: 'autoThrottleRange', label: 'Automatic Throttle Range', ver: '>=4.6' },
+                { cli: 'rc_arm_throttle', label: 'Arming Throttle', unit: 'μs', ver: '<4.6' },
+                { cli: 'rc_min_throttle', label: 'Min Throttle - 0%', unit: 'μs',
+                  when: 'fixedThrottleRange' },
+                { cli: 'rc_max_throttle', label: 'Max Throttle - 100%', unit: 'μs',
+                  when: 'fixedThrottleRange' }
+            ] },
+
+            { title: 'Telemetry', rows: [
+                { feature: 'TELEMETRY', label: 'Enable' },
+                /* The Signaling sub-section is for an external telemetry
+                 * protocol on its own port (TelemetrySettings.svelte: `enabled
+                 * && telemetry.external`), which a receiver carrying its own
+                 * telemetry is not. Whether it applies depends on a telemetry
+                 * protocol the file does not record, so tlm_inverted,
+                 * tlm_halfduplex and tlm_pinswap are left to the box below
+                 * rather than shown here for a receiver that would not have
+                 * them. */
+                { sub: 'CRSF' },
+                /* A switch on whether a custom mode is set at all, not a
+                 * dropdown (TelemetrySettings.svelte). */
+                { toggle: 'customTelemetry', label: 'Custom Telemetry' },
+                { cli: 'crsf_telemetry_link_rate', label: 'Telemetry Packet Rate', unit: 'Hz' },
+                { cli: 'crsf_telemetry_link_ratio', label: 'Telemetry Packet Ratio' }
+            ] },
+
+            { title: 'Channel Assignment', channelMap: true, rows: [] }
+        ]
+    },
+
     /* The Failsafe tab, from src/tabs/failsafe/Failsafe.svelte. The channel
      * fallbacks are `rxfail` lines rather than settings, so the box that holds
      * them is built in app.js; only the pulse limits are settings. */
@@ -529,6 +583,15 @@ window.RF_ENUM_LISTS = {
     rpmFilterStrengths: ['Custom', 'Low', 'Medium', 'High'],
 
     /* src/js/tabs/rates.js getRatesTypes(), with the entry API 12.9 adds. */
+    /* Channel presets from src/tabs/receiver/ChannelAssignment/
+     * ChannelAssignment.svelte, so a map that matches one can be named. */
+    channelPresets: [
+        { label: 'ELRS', map: [0, 1, 3, 2, 5, 4, 6, 7] },
+        { label: 'FrSky', map: [0, 1, 3, 4, 2, 5, 6, 7] },
+        { label: 'Futaba / Hitec', map: [0, 1, 3, 5, 2, 4, 6, 7] },
+        { label: 'Spektrum / Graupner / JR', map: [1, 2, 3, 5, 0, 4, 6, 7] }
+    ],
+
     ratesTypes: ['None', 'Betaflight', 'Raceflight', 'KISS', 'Actual',
                  'QuickRates', 'Rotorflight'],
 

@@ -328,13 +328,18 @@
             specs.forEach(function (spec) {
                 if (spec.rows) { walk(spec.rows); }
                 if (spec.cli) { out[spec.cli] = true; }
+                if (spec.toggle === 'customTelemetry') { out.crsf_telemetry_mode = true; }
                 /* A derived row names the line it read in `from`; when that is
                  * a setting, the layout has accounted for it too. */
                 if (spec.from && /^[a-z0-9_]+$/.test(spec.from)) { out[spec.from] = true; }
                 if (spec.ratio) { out[spec.ratio] = true; }
+                if (spec.channelMap) { out.rssi_channel = true; }
             });
         }
-        layout.boxes.forEach(function (box) { walk(box.rows); });
+        layout.boxes.forEach(function (box) {
+            walk(box.rows);
+            if (box.channelMap) { out.rssi_channel = true; }
+        });
         if (layout.matrix) {
             layout.matrix.axes.forEach(function (axis) {
                 layout.matrix.terms.forEach(function (term) {
@@ -1331,6 +1336,13 @@
             return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
         },
         dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        /* ChannelRange.svelte: the throttle range is automatic when both ends
+         * are zero, and the two endpoints are hidden while it is. */
+        autoThrottleRange: function () {
+            return masterValue('rc_min_throttle') === 0 && masterValue('rc_max_throttle') === 0;
+        },
+        fixedThrottleRange: function () { return !WHEN.autoThrottleRange(); },
+        customTelemetry: function () { return lookupIndex('crsf_telemetry_mode') > 0; },
         /* configuration.js: the sensor switches are on unless the hardware is
          * set to NONE (index 1), and statistics are off at -1. */
         accelerometer: function () { return lookupIndex('acc_hardware') !== 1; },
@@ -1845,6 +1857,95 @@
         return table;
     }
 
+    // ------------------------------------------------------- channel assignment
+    //
+    // `map AECR1T23` gives one letter per RC channel, saying which control it
+    // carries. The letters are the firmware's own (rx/rx.c:
+    // "AERCT12345678"), and the CLI writes them as
+    // `buf[rcmap[i]] = rcChannelLetters[i]`, so the letter at position N is
+    // simply what RC channel N+1 is assigned to.
+
+    var RC_LETTERS = 'AERCT12345678';
+    var RC_FUNCTIONS = ['Roll', 'Pitch', 'Yaw', 'Collective', 'Throttle'];
+
+    function functionName(index) {
+        return index < RC_FUNCTIONS.length
+            ? RC_FUNCTIONS[index]
+            : 'AUX ' + (index - RC_FUNCTIONS.length + 1);
+    }
+
+    /* The Configurator names a map that matches one of its presets. */
+    function presetFor(letters) {
+        var rcmap = [];
+        for (var i = 0; i < letters.length; i++) {
+            rcmap[i] = letters.indexOf(RC_LETTERS.charAt(i));
+        }
+        var presets = (window.RF_ENUM_LISTS || {}).channelPresets || [];
+        for (var p = 0; p < presets.length; p++) {
+            var map = presets[p].map;
+            if (map.length !== rcmap.length) { continue; }
+            var same = true;
+            for (var j = 0; j < map.length; j++) {
+                if (map[j] !== rcmap[j]) { same = false; break; }
+            }
+            if (same) { return presets[p].label; }
+        }
+        return null;
+    }
+
+    function channelMapBox(gui) {
+        var line = rows('map')[0];
+        if (!line) { return null; }
+        var letters = line.letters;
+
+        var preset = presetFor(letters);
+        var wrap = document.createDocumentFragment();
+        if (preset) {
+            var head = el('table', 'settings_table');
+            var hbody = el('tbody');
+            head.appendChild(hbody);
+            hbody.appendChild(simpleRow('Apply Preset', null, preset, 'map',
+                'The Configurator names a channel map that matches one of its presets.'));
+            wrap.appendChild(head);
+        }
+
+        var table = el('table', 'settings_table');
+        var tbody = el('tbody');
+        table.appendChild(tbody);
+
+        /* Channels past the map are fixed: the ninth is always AUX 4. */
+        var total = Math.max(letters.length, 16);
+        for (var ch = 0; ch < total; ch++) {
+            var name;
+            if (ch < letters.length) {
+                var index = RC_LETTERS.indexOf(letters.charAt(ch));
+                if (index < 0) { continue; }
+                name = functionName(index);
+            } else {
+                name = functionName(ch);
+            }
+            tbody.appendChild(simpleRow(String(ch + 1), null, name, 'map',
+                'From the file\u2019s `map` line: the letter in position '
+                + (ch + 1) + ' names this channel.'));
+        }
+        wrap.appendChild(table);
+
+        /* ChannelAssignment.svelte: the RSSI source reads ADC when the
+         * feature is on, the named channel when one is set past the control
+         * channels, and AUTO otherwise. */
+        var rt = el('table', 'settings_table');
+        var rb = el('tbody');
+        rt.appendChild(rb);
+        var channel = masterValue('rssi_channel');
+        var source = featureOn('RSSI_ADC') ? 'ADC'
+            : (channel > RC_FUNCTIONS.length ? functionName(channel - 1) : 'AUTO');
+        rb.appendChild(simpleRow('RSSI', null, source, 'rssi_channel',
+            'ADC when `feature RSSI_ADC` is on, a channel when rssi_channel '
+            + 'names one past the control channels, AUTO otherwise.'));
+        wrap.appendChild(rt);
+        return wrap;
+    }
+
     /* A tab whose layout is transcribed from the Configurator. */
     function renderLayoutTab(tabId) {
         var layout = (window.RF_LAYOUT || {})[tabId];
@@ -1868,6 +1969,12 @@
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
 
             if (box.when && WHEN[box.when] && !WHEN[box.when]()) { return; }
+
+            if (box.channelMap) {
+                var cm = channelMapBox(gui);
+                if (cm) { panelBody(gui).appendChild(cm); grid.appendChild(gui); rendered++; }
+                return;
+            }
 
             if (box.fallbacks) {
                 var fb = fallbacksBox();
