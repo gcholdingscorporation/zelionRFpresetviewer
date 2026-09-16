@@ -750,6 +750,198 @@
         return frag;
     }
 
+    // ------------------------------------------------------------- rates tab
+    //
+    // Two grids, oriented differently: the rates themselves are one row per
+    // axis, the dynamics one row per setting. Both come from src/tabs/rates.html
+    // and the scaling from src/js/tabs/rates.js - see RF_RATES.
+
+    var RATE_AXES = ['ROLL', 'PITCH', 'YAW', 'COLLECTIVE'];
+
+    function rateProfileValue(name, index) {
+        var present = entryFor(name, 'rateprofile', index);
+        if (present) { return present.value; }
+        var m = meta(name);
+        return m && m.d !== undefined ? m.d : null;
+    }
+
+    function ratesType(index) {
+        var value = rateProfileValue('rates_type', index);
+        return lutIndexOf(meta('rates_type'), value);
+    }
+
+    function show(value, pair) {
+        if (value === null || value === undefined || isNaN(Number(value))) { return null; }
+        return (Number(value) * pair[0]).toFixed(pair[1]);
+    }
+
+    /* Max Vel is the rate curve evaluated at full stick. Only the two curves
+     * that reduce to a closed form at that point are ported; for the rest the
+     * column is left blank rather than filled with a guess. */
+    function maxVel(kind, rate, srate) {
+        if (rate === null) { return null; }
+        if (kind === 'raceflight') { return Number(rate) * (1 + Number(srate) / 100); }
+        if (kind === 'rotorflight') { return Number(rate); }
+        return null;
+    }
+
+    function rateCell(text, title) {
+        var cell = el('td', 'pid_data');
+        var input = el('input', 'value');
+        input.type = 'text';
+        input.value = text === null || text === undefined ? '—' : text;
+        input.disabled = true;
+        if (title) { input.title = title; }
+        cell.appendChild(input);
+        return cell;
+    }
+
+    function ratesGrid(index) {
+        var type = ratesType(index);
+        var spec = (window.RF_RATES || {}).byType[type];
+        if (!spec) { return null; }
+
+        var box = panel('Rates', 'rate profile ' + index);
+        var table = el('table', 'pid_table');
+        var head = el('tr', 'pid_titlebar');
+        head.appendChild(el('th', null, 'Rates'));
+        spec.labels.forEach(function (l) { head.appendChild(el('th', null, l)); });
+        head.appendChild(el('th', null, 'Max Vel [°/s]'));
+        var thead = el('thead');
+        thead.appendChild(head);
+        table.appendChild(thead);
+
+        var body = el('tbody');
+        RATE_AXES.forEach(function (axis) {
+            var key = axis.toLowerCase();
+            var coll = key === 'collective';
+            var row = el('tr', axis);
+            row.appendChild(el('td', 'axis_title', axis));
+
+            var rate = rateProfileValue(key + '_rc_rate', index);
+            var srate = rateProfileValue(key + '_srate', index);
+            var expo = rateProfileValue(key + '_expo', index);
+
+            var shownRate = show(rate, coll ? spec.coll_rate : spec.rate);
+            row.appendChild(rateCell(shownRate, key + '_rc_rate = ' + rate));
+            row.appendChild(rateCell(show(srate, coll ? spec.coll_srate : spec.srate),
+                key + '_srate = ' + srate));
+            row.appendChild(rateCell(show(expo, coll ? spec.coll_expo : spec.expo),
+                key + '_expo = ' + expo));
+
+            var vel = maxVel(spec.maxVel, shownRate, show(srate, coll ? spec.coll_srate : spec.srate));
+            row.appendChild(rateCell(vel === null ? null : vel.toFixed(coll ? 1 : 0),
+                'The rate curve at full stick.'));
+            body.appendChild(row);
+        });
+        table.appendChild(body);
+        panelBody(box).appendChild(table);
+        return box;
+    }
+
+    var DYNAMICS_ROWS = [
+        { label: 'Response Time [ms]', per: '%_response' },
+        { label: 'Setpoint Boost Gain', array: 'setpoint_boost_gain' },
+        { label: 'Setpoint Boost Cutoff', array: 'setpoint_boost_cutoff' },
+        { label: 'Dynamic Ceiling Gain', yaw: 'yaw_dynamic_ceiling_gain' },
+        { label: 'Dynamic Deadband Gain', yaw: 'yaw_dynamic_deadband_gain' },
+        { label: 'Dynamic Deadband Filter [Hz]', yaw: 'yaw_dynamic_deadband_filter', div: 10 }
+    ];
+
+    function dynamicsGrid(index) {
+        var box = panel('Dynamics', 'rate profile ' + index);
+        var table = el('table', 'pid_table');
+        var head = el('tr', 'pid_titlebar');
+        head.appendChild(el('th', null, 'Dynamics'));
+        RATE_AXES.forEach(function (a) { head.appendChild(el('th', null, a)); });
+        var thead = el('thead');
+        thead.appendChild(head);
+        table.appendChild(thead);
+
+        var body = el('tbody');
+        var shown = 0;
+        DYNAMICS_ROWS.forEach(function (spec) {
+            var row = el('tr');
+            row.appendChild(el('td', 'axis_title', spec.label));
+            var got = false;
+            RATE_AXES.forEach(function (axis, i) {
+                var key = axis.toLowerCase();
+                var value = null, name = null;
+                if (spec.per) {
+                    name = spec.per.replace('%', key);
+                    if (meta(name)) { value = rateProfileValue(name, index); }
+                } else if (spec.array) {
+                    name = spec.array;
+                    var all = rateProfileValue(spec.array, index);
+                    if (Array.isArray(all)) { value = all[i]; }
+                } else if (spec.yaw && axis === 'YAW') {
+                    name = spec.yaw;
+                    if (meta(name)) { value = rateProfileValue(name, index); }
+                }
+                if (value === null || value === undefined) { row.appendChild(el('td', 'pid_data')); return; }
+                got = true;
+                var text = spec.div ? (Number(value) / spec.div).toFixed(1) : String(value);
+                row.appendChild(rateCell(text, name + ' = ' + value));
+            });
+            if (got) { body.appendChild(row); shown++; }
+        });
+        table.appendChild(body);
+        panelBody(box).appendChild(table);
+        return shown ? box : null;
+    }
+
+    function renderRates() {
+        var frag = document.createDocumentFragment();
+        var index = state.rateProfile;
+        frag.appendChild(profileBar('rateprofile'));
+
+        var grid = el('div', 'columns');
+
+        var typeBox = panel('Rates Type', 'rate profile ' + index);
+        var tbody = settingsTable(typeBox);
+        var typeRow = layoutRow({ cli: 'rates_type', label: 'Rates Type', enum: 'ratesTypes' }, index);
+        if (typeRow) { tbody.appendChild(typeRow); }
+        grid.appendChild(typeBox);
+
+        var ringBox = panel('Cyclic Ring', 'rate profile ' + index);
+        var ringBody = settingsTable(ringBox);
+        [{ toggle: 'cyclicRing', label: 'Enable Cyclic Ring' },
+         { cli: 'cyclic_ring', label: 'Cyclic Ring Level', when: 'cyclicRing' },
+         { cli: 'cyclic_polar', label: 'Enable Polar Coordinates' }].forEach(function (spec) {
+            var row = layoutRow(spec, index);
+            if (row) { ringBody.appendChild(row); }
+        });
+        grid.appendChild(ringBox);
+
+        var rates = ratesGrid(index);
+        if (rates) { grid.appendChild(rates); }
+        var dyn = dynamicsGrid(index);
+        if (dyn) { grid.appendChild(dyn); }
+
+        frag.appendChild(grid);
+        frag.appendChild(renderSettingsTab('rates', {
+            quiet: true,
+            scope: 'rateprofile',
+            skip: RATES_COVERED,
+            hint: 'not on the Configurator’s Rates tab'
+        }));
+        return frag;
+    }
+
+    var RATES_COVERED = (function () {
+        var out = { rates_type: true, cyclic_ring: true, cyclic_polar: true };
+        RATE_AXES.forEach(function (axis) {
+            var key = axis.toLowerCase();
+            out[key + '_rc_rate'] = out[key + '_srate'] = out[key + '_expo'] = true;
+            out[key + '_response'] = true;
+        });
+        DYNAMICS_ROWS.forEach(function (spec) {
+            if (spec.array) { out[spec.array] = true; }
+            if (spec.yaw) { out[spec.yaw] = true; }
+        });
+        return out;
+    }());
+
     // ------------------------------------------------------------ mixer tab
 
     function renderMixer() {
@@ -1083,6 +1275,9 @@
             return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
         },
         dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        cyclicRing: function () {
+            return rateProfileValue('cyclic_ring', state.rateProfile) > 0;
+        },
         rpmFilter: function () { return featureOn('RPM_FILTER'); },
         mainMotorNotch: function () { return !unityRatio('main_rotor_gear_ratio'); },
         tailMotorNotch: function () {
@@ -1641,6 +1836,7 @@
         adjustments: renderAdjustments,
         servos: renderServos,
         mixer: renderMixer,
+        rates: renderRates,
         ledstrip: renderLedStrip,
         beepers: renderBeepers,
         board: renderBoard,

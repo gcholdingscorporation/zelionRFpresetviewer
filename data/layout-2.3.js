@@ -451,6 +451,10 @@ window.RF_ENUM_LISTS = {
     /* src/tabs/gyro/RpmFilter.svelte filterStrengths. */
     rpmFilterStrengths: ['Custom', 'Low', 'Medium', 'High'],
 
+    /* src/js/tabs/rates.js getRatesTypes(), with the entry API 12.9 adds. */
+    ratesTypes: ['None', 'Betaflight', 'Raceflight', 'KISS', 'Actual',
+                 'QuickRates', 'Rotorflight'],
+
     batteryMeterTypes: ['None', 'Battery ADC', 'ESC Telemetry', 'FrSky Sensor'],
     smartFuelSourceTypes: ['Off', 'Voltage', 'Current', 'Combined'],
 
@@ -459,4 +463,42 @@ window.RF_ENUM_LISTS = {
         'Hobbywing Platinum V5', 'Scorpion', 'Kontronik', 'OMPHobby', 'ZTW',
         'APD', 'OpenYGE', 'FLYROTOR', 'Graupner', 'XDFLY', 'FrSky F.BUS'
     ]
+};
+
+/* How the Rates tab presents a rate profile, from src/js/tabs/rates.js.
+ *
+ * Every rate field reaches the Configurator as the stored byte divided by 100
+ * (MSPHelper.js), and the tab then multiplies it by a factor that depends on
+ * the rates type and prints it to a fixed number of decimals. `f` below is the
+ * two combined, so `f` x the stored value is what the pilot sees:
+ * roll_rc_rate = 32 under Raceflight is 32 x 10 = 320.
+ *
+ * `maxVel` names the curve the Max Vel column comes from; where the viewer has
+ * not ported that curve the column is left blank rather than guessed at.
+ */
+window.RF_RATES = {
+    types: ['None', 'Betaflight', 'Raceflight', 'KISS', 'Actual', 'QuickRates', 'Rotorflight'],
+    byType: {
+        0: { labels: ['RC Rate', 'Rate', 'RC Expo'],
+             rate: [1, 0], coll_rate: [1, 0], srate: [1, 0], coll_srate: [1, 0],
+             expo: [1, 0], coll_expo: [1, 0] },
+        1: { labels: ['RC Rate', 'Rate', 'RC Expo'],
+             rate: [0.01, 2], coll_rate: [0.01, 2], srate: [0.01, 2], coll_srate: [0.01, 2],
+             expo: [0.01, 2], coll_expo: [0.01, 2] },
+        2: { labels: ['Rate', 'Acro+', 'Expo'],
+             rate: [10, 0], coll_rate: [0.25, 1], srate: [1, 0], coll_srate: [1, 0],
+             expo: [1, 0], coll_expo: [1, 0], maxVel: 'raceflight' },
+        3: { labels: ['RC Rate', 'Rate', 'RC Expo'],
+             rate: [0.01, 2], coll_rate: [0.01, 2], srate: [0.01, 2], coll_srate: [0.01, 2],
+             expo: [0.01, 2], coll_expo: [0.01, 2] },
+        4: { labels: ['Rate', 'Acro+', 'Expo'],
+             rate: [10, 0], coll_rate: [0.25, 1], srate: [10, 0], coll_srate: [0.25, 1],
+             expo: [0.01, 2], coll_expo: [0.01, 2] },
+        5: { labels: ['RC Rate', 'Acro+', 'Expo'],
+             rate: [0.01, 2], coll_rate: [0.01, 2], srate: [10, 0], coll_srate: [4.8, 0],
+             expo: [0.01, 2], coll_expo: [0.01, 2] },
+        6: { labels: ['Rate', 'Curve Shape', 'Expo'],
+             rate: [5, 0], coll_rate: [0.125, 2], srate: [1, 0], coll_srate: [1, 0],
+             expo: [1, 0], coll_expo: [1, 0], maxVel: 'rotorflight' }
+    }
 };
