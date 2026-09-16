@@ -753,6 +753,71 @@ window.RF_LABELS = {"acc_trim_pitch":{"l":"Accelerometer Pitch Trim","s":"Accele
  */
 
 window.RF_LAYOUT = {
+
+    /* The Mixer tab, from src/tabs/mixer.html and src/js/tabs/mixer.js.
+     *
+     * Most of this page is not a setting. The Configurator derives it from the
+     * four stabilised `mixer input` lines and the mixer config, and the same
+     * stored number reaches the screen differently depending on the tail type:
+     * tail_center_trim is shown as degrees (x24/1000) for a variable-pitch
+     * tail and as a percentage (x0.1) for a motorised one. Rows marked `calc`
+     * name a function in app.js that does what mixer.js does, and `from` says
+     * which line of the file it read, so nothing here is a bare number with no
+     * stated origin.
+     */
+    mixer: {
+        boxes: [
+            { title: 'Main Rotor Settings', rows: [
+                { cli: 'swash_type', label: 'Swashplate Type', enum: 'js:swashTypes' },
+                { cli: 'main_rotor_dir', label: 'Main Rotor Direction', enum: 'mixerMainRotorDirection' },
+                { calc: 'aileronDirection', label: 'Aileron Control Direction',
+                  enum: 'mixerAileronDirection', from: 'mixer input SR' },
+                { calc: 'elevatorDirection', label: 'Elevator Control Direction',
+                  enum: 'mixerElevatorDirection', from: 'mixer input SP' },
+                { calc: 'collectiveDirection', label: 'Collective Control Direction',
+                  enum: 'mixerCollectiveDirection', from: 'mixer input SC' }
+            ] },
+
+            { title: 'Main Rotor Geometry', rows: [
+                { calc: 'cyclicCalibration', label: 'Cyclic calibration', unit: '%', from: 'mixer input SR' },
+                { calc: 'collectiveCalibration', label: 'Collective calibration', unit: '%', from: 'mixer input SC' },
+                { calc: 'collectiveGeoCorrection', label: 'Collective Geometry Correction', unit: '%',
+                  from: 'swash_geo_correction' },
+                { calc: 'cyclicLimit', label: 'Cyclic blade pitch limit', unit: '°', from: 'mixer input SP' },
+                { calc: 'collectiveLimit', label: 'Collective blade pitch limit', unit: '°', from: 'mixer input SC' },
+                { calc: 'totalPitchLimit', label: 'Total blade pitch limit', unit: '°', from: 'swash_pitch_limit' },
+                { calc: 'swashPhase', label: 'Swashplate phase angle', unit: '°', from: 'swash_phase' },
+                { cli: 'collective_tilt_correction_pos', label: 'Positive Collective Tilt Correction' },
+                { cli: 'collective_tilt_correction_neg', label: 'Negative Collective Tilt Correction' }
+            ] },
+
+            { title: 'Swashplate Trims', rows: [
+                { calc: 'swashRollTrim', label: 'Roll trim', unit: '%', from: 'swash_roll_trim' },
+                { calc: 'swashPitchTrim', label: 'Pitch trim', unit: '%', from: 'swash_pitch_trim' },
+                { calc: 'swashCollectiveTrim', label: 'Collective trim', unit: '%', from: 'swash_collective_trim' }
+            ] },
+
+            { title: 'Tail Rotor Settings', rows: [
+                { cli: 'tail_rotor_mode', label: 'Tail rotor type', enum: 'mixerTailRotorMode' },
+                { calc: 'tailRotorDirection', label: 'Yaw Control Direction',
+                  enum: 'mixerTailRotorDirection', from: 'mixer input SY' },
+                { calc: 'tailRotorCenterTrim', label: 'Yaw center trim',
+                  when: 'variableTail', from: 'tail_center_trim' },
+                { calc: 'tailMotorCenterTrim', label: 'Yaw center offset', unit: '%',
+                  when: 'motorisedTail', from: 'tail_center_trim' },
+                { calc: 'tailRotorCalibration', label: 'Yaw calibration', unit: '%', from: 'mixer input SY' },
+                { calc: 'tailRotorMinYaw', label: 'CW Yaw Blade Angle Limit',
+                  when: 'variableTail', from: 'mixer input SY' },
+                { calc: 'tailRotorMaxYaw', label: 'CCW Yaw Blade Angle Limit',
+                  when: 'variableTail', from: 'mixer input SY' },
+                { calc: 'tailMotorMinYaw', label: 'CW yaw limit', unit: '%',
+                  when: 'motorisedTail', from: 'mixer input SY' },
+                { calc: 'tailMotorMaxYaw', label: 'CCW yaw limit', unit: '%',
+                  when: 'motorisedTail', from: 'mixer input SY' },
+                { cli: 'tail_motor_idle', label: 'Motor idle throttle', unit: '%', when: 'motorisedTail' }
+            ] }
+        ]
+    },
     profiles: {
         scope: 'profile',
 
@@ -890,12 +955,31 @@ window.RF_LAYOUT = {
     }
 };
 
+/* Firmware defaults for the stabilised mixer inputs, from rotorflight-firmware
+ * src/main/pg/mixer.c pgResetFn_mixerInputs(). A `diff all` only carries the
+ * lines that changed, so without these the Mixer tab would be blank for the
+ * ones that did not. */
+window.RF_MIXER_INPUT_DEFAULTS = {
+    SR: { min: -1250, max: 1250, rate: 250 },
+    SP: { min: -1250, max: 1250, rate: 250 },
+    SY: { min: -1250, max: 1250, rate: 250 },
+    SC: { min: -1250, max: 1250, rate: 250 },
+    ST: { min: 0, max: 1000, rate: 1000 }
+};
+
 </script>
 <script>
 // Generated by tools/gen_scales.py from the Rotorflight
 // Configurator (GPL-3.0; see NOTICE). Do not edit by hand.
 // Divisor applied to a stored value for display, per firmware.
 window.RF_SCALES = {"4.5":{"dyn_notch_q":10,"gov_autorotation_bailout_time":10,"gov_autorotation_min_entry_time":10,"gov_autorotation_timeout":10,"gov_d_filter":10,"gov_lost_headspeed_timeout":10,"gov_recovery_time":10,"gov_spooldown_time":10,"gov_spoolup_time":10,"gov_startup_time":10,"gov_tracking_time":10,"gov_zero_throttle_timeout":10},"4.6":{"dyn_notch_q":10,"gov_auto_throttle":10,"gov_d_filter":10,"gov_idle_throttle":10,"gov_recovery_time":10,"gov_spooldown_time":10,"gov_spoolup_time":10,"gov_startup_time":10,"gov_throttle_hold_timeout":10,"gov_tracking_time":10}};
+
+</script>
+<script>
+// Generated by tools/gen_enums.py from the Rotorflight
+// Configurator (GPL-3.0; see NOTICE). Do not edit by hand.
+// The wording the Configurator shows for an enumerated value.
+window.RF_ENUMS = {"byId":{"js:inputNames":{"0":"-","1":"Roll","10":"Commanded Throttle","11":"RC Channel Roll","12":"RC Channel Pitch","13":"RC Channel Yaw","14":"RC Channel Collective","15":"RC Channel Throttle","16":"RC Channel AUX1","17":"RC Channel AUX2","18":"RC Channel AUX3","19":"RC Channel #9","2":"Pitch","20":"RC Channel #10","21":"RC Channel #11","22":"RC Channel #12","23":"RC Channel #13","24":"RC Channel #14","25":"RC Channel #15","26":"RC Channel #16","27":"RC Channel #17","28":"RC Channel #18","3":"Yaw","4":"Collective","5":"Throttle","6":"Commanded Roll","7":"Commanded Pitch","8":"Commanded Yaw","9":"Commanded Collective"},"js:operNames":{"0":"-","1":"Set","2":"Add","3":"Mul"},"js:outputNames":{"0":"-","1":"Motor #1","10":"Servo #6","11":"Servo #7","12":"Servo #8","2":"Motor #2","3":"Motor #3","4":"Motor #4","5":"Servo #1","6":"Servo #2","7":"Servo #3","8":"Servo #4","9":"Servo #5"},"js:swashTypes":{"0":"None","1":"Direct","2":"CCPM 120\u00b0","3":"CCPM 135\u00b0","4":"CCPM 140\u00b0","5":"FPM 90\u00b0 L","6":"FPM 90\u00b0 V"},"ledStripProfile":{"0":"Race","1":"Beacon","2":"Status","3":"Status Alt"},"magalign":{"0":"Default"},"mixerAileronDirection":{"-1":"Reverse","1":"Normal"},"mixerCollectiveDirection":{"-1":"Reverse","1":"Normal"},"mixerElevatorDirection":{"-1":"Reverse","1":"Normal"},"mixerMainRotorDirection":{"0":"Clockwise","1":"Counter-Clockwise"},"mixerTailRotorDirection":{"-1":"Reverse","1":"Normal"},"mixerTailRotorMode":{"0":"Variable pitch","1":"Motorised","2":"Bidirectional"},"opt-connection-timeout":{"100":"100","1000":"1000","1500":"1500","2500":"2500","500":"500","5000":"5000"},"opt-dark-theme":{"0":"On","1":"Off","2":"Auto"}},"byName":{"swash_type":{"0":"None","1":"Direct","2":"CCPM 120\u00b0","3":"CCPM 135\u00b0","4":"CCPM 140\u00b0","5":"FPM 90\u00b0 L","6":"FPM 90\u00b0 V"}}};
 
 </script>
 <script>
@@ -2144,11 +2228,38 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
 
     /* Settings on a tab that no curated panel picked up, grouped by their
      * firmware parameter group so the leftovers stay organised. */
-    function leftoverGroups(tabId) {
+    /* Every CLI setting a transcribed layout already puts on the page, so the
+     * generic renderer does not show it a second time with a raw value. */
+    function layoutNames(tabId) {
+        var layout = (window.RF_LAYOUT || {})[tabId];
+        var out = {};
+        if (!layout) { return out; }
+        function walk(specs) {
+            specs.forEach(function (spec) {
+                if (spec.rows) { walk(spec.rows); }
+                if (spec.cli) { out[spec.cli] = true; }
+                /* A derived row names the line it read in `from`; when that is
+                 * a setting, the layout has accounted for it too. */
+                if (spec.from && /^[a-z0-9_]+$/.test(spec.from)) { out[spec.from] = true; }
+            });
+        }
+        layout.boxes.forEach(function (box) { walk(box.rows); });
+        if (layout.matrix) {
+            layout.matrix.axes.forEach(function (axis) {
+                layout.matrix.terms.forEach(function (term) {
+                    out[axis.toLowerCase() + '_' + term.key + '_gain'] = true;
+                });
+            });
+        }
+        return out;
+    }
+
+    function leftoverGroups(tabId, skip) {
         var names = Object.keys(INDEX.byTab[tabId] ? INDEX.byTab[tabId].names : {});
         var groups = {};
         names.forEach(function (n) {
-            if (INDEX.claimed[n]) { return; }
+            if (INDEX.claimed[n] && !(skip && skip.sections)) { return; }
+            if (skip && skip.names[n]) { return; }
             var m = meta(n);
             var key = m && m.pg ? m.pg : 'UNKNOWN';
             (groups[key] || (groups[key] = [])).push(n);
@@ -2174,7 +2285,9 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         var rendered = 0;
         var seen = {};
 
-        S.SECTIONS.filter(function (s) { return s.tab === tabId; }).forEach(function (sec) {
+        var skip = opts.skip ? { names: opts.skip, sections: true } : null;
+
+        (skip ? [] : S.SECTIONS.filter(function (s) { return s.tab === tabId; })).forEach(function (sec) {
             var secScope = sec.profileScope ? 'profile'
                          : sec.rateScope ? 'rateprofile' : 'master';
             var secIndex = secScope === 'profile' ? state.profile
@@ -2194,8 +2307,9 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             if (n) { grid.appendChild(box); rendered += n; }
         });
 
-        leftoverGroups(tabId).forEach(function (g) {
-            var box = panel(S.pgTitle(g.pg), g.pg === 'UNKNOWN' ? 'unrecognised' : '');
+        leftoverGroups(tabId, skip).forEach(function (g) {
+            var box = panel(S.pgTitle(g.pg), opts.hint !== undefined ? opts.hint
+                : (g.pg === 'UNKNOWN' ? 'unrecognised' : ''));
             var body = settingsTable(box);
             var n = 0;
             g.names.forEach(function (name) {
@@ -2533,6 +2647,9 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
     function renderMixer() {
         var frag = document.createDocumentFragment();
 
+        var laid = renderLayoutTab('mixer');
+        if (laid) { frag.appendChild(laid); }
+
         var inputs = rows('mixerInput');
         var ib = panel('Mixer Inputs', inputs.length + ' overridden');
         panelBody(ib).appendChild(table(
@@ -2563,7 +2680,11 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             frag.appendChild(ob);
         }
 
-        frag.appendChild(renderSettingsTab('mixer', { quiet: true }));
+        frag.appendChild(renderSettingsTab('mixer', {
+            quiet: true,
+            skip: layoutNames('mixer'),
+            hint: 'not on the Configurator\u2019s Mixer tab'
+        }));
         return frag;
     }
 
@@ -2772,7 +2893,145 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         return null;
     }
 
+
+    // ---------------------------------------------------- derived page values
+    //
+    // The Mixer tab shows almost nothing the CLI stores directly: the pitch
+    // limits, calibrations and control directions are all worked out from the
+    // four stabilised `mixer input` lines and a handful of mixer settings.
+    // These do the same arithmetic as the Configurator's src/js/tabs/mixer.js,
+    // with the same constants, so the page reads the way the pilot's did.
+
+    function mixerInput(name) {
+        var found = null;
+        rows('mixerInput').forEach(function (r) {
+            if (r.input === name) { found = r; }
+        });
+        if (found) { return found; }
+        // A `diff all` carries only the lines that changed; the rest are stock.
+        var stock = (window.RF_MIXER_INPUT_DEFAULTS || {})[name];
+        return stock ? { input: name, min: stock.min, max: stock.max, rate: stock.rate } : null;
+    }
+
+    function masterValue(name) {
+        var present = entryFor(name, 'master', null);
+        if (present) { return present.value; }
+        var m = meta(name);
+        return m && m.d !== undefined ? m.d : null;
+    }
+
+    /* A lookup setting reaches us as the firmware's symbol when it came from a
+     * file and as an index when it came from the defaults; the index is what
+     * the Configurator's dropdowns are keyed by. */
+    function lutIndexOf(m, value) {
+        if (typeof value === 'number') { return value; }
+        var table = lut(m);
+        if (!table) { return null; }
+        var i = table.indexOf(value);
+        return i < 0 ? null : i;
+    }
+
+    function lookupIndex(name) {
+        return lutIndexOf(meta(name), masterValue(name));
+    }
+
+    /* The Configurator's own wording for an enumerated value. */
+    function enumWord(key, value) {
+        if (value === null || value === undefined) { return null; }
+        var table = ((window.RF_ENUMS || {}).byId || {})[key];
+        if (!table) { return null; }
+        var word = table[String(value)];
+        return word === undefined ? null : word;
+    }
+
+    var WHEN = {
+        variableTail: function () { return lookupIndex('tail_rotor_mode') === 0; },
+        motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; }
+    };
+
+    function times(value, factor, places) {
+        if (value === null || value === undefined || isNaN(value)) { return null; }
+        return (Number(value) * factor).toFixed(places === undefined ? 1 : places);
+    }
+
+    function inputField(name, key) {
+        var input = mixerInput(name);
+        return input ? Number(input[key]) : null;
+    }
+
+    function signOf(value) {
+        return value === null || value === undefined ? null : (value < 0 ? -1 : 1);
+    }
+
+    function magnitude(value, factor) {
+        return value === null ? null : times(Math.abs(value), factor);
+    }
+
+    var DERIVED = {
+        aileronDirection:    function () { return signOf(inputField('SR', 'rate')); },
+        elevatorDirection:   function () { return signOf(inputField('SP', 'rate')); },
+        collectiveDirection: function () { return signOf(inputField('SC', 'rate')); },
+        tailRotorDirection:  function () { return signOf(inputField('SY', 'rate')); },
+
+        cyclicCalibration:     function () { return magnitude(inputField('SR', 'rate'), 0.1); },
+        collectiveCalibration: function () { return magnitude(inputField('SC', 'rate'), 0.1); },
+        tailRotorCalibration:  function () { return magnitude(inputField('SY', 'rate'), 0.1); },
+
+        cyclicLimit:     function () { return times(inputField('SP', 'max'), 12 / 1000); },
+        collectiveLimit: function () { return times(inputField('SC', 'max'), 12 / 1000); },
+        totalPitchLimit: function () { return times(masterValue('swash_pitch_limit'), 12 / 1000); },
+
+        collectiveGeoCorrection: function () { return times(masterValue('swash_geo_correction'), 1 / 5); },
+        swashPhase:              function () { return times(masterValue('swash_phase'), 0.1); },
+        swashRollTrim:           function () { return times(masterValue('swash_roll_trim'), 0.1); },
+        swashPitchTrim:          function () { return times(masterValue('swash_pitch_trim'), 0.1); },
+        swashCollectiveTrim:     function () { return times(masterValue('swash_collective_trim'), 0.1); },
+
+        tailRotorCenterTrim: function () { return times(masterValue('tail_center_trim'), 24 / 1000); },
+        tailMotorCenterTrim: function () { return times(masterValue('tail_center_trim'), 0.1); },
+        tailRotorMinYaw:     function () { return times(inputField('SY', 'min'), -24 / 1000); },
+        tailRotorMaxYaw:     function () { return times(inputField('SY', 'max'), 24 / 1000); },
+        tailMotorMinYaw:     function () { return times(inputField('SY', 'min'), -0.1); },
+        tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
+    };
+
+    /* A row the Configurator computes rather than stores. It carries no "was",
+     * because there is no single firmware default to compare one against. */
+    function derivedRow(spec) {
+        var fn = DERIVED[spec.calc];
+        if (!fn) { return null; }
+        var value = fn();
+        if (value === null) { return null; }
+        var shown = spec.enum ? enumWord(spec.enum, value) : String(value);
+        if (shown === null) { return null; }
+        if (state.onlyChanged) { return null; }
+        if (!matchesFilter(spec.from || spec.calc, spec.label)) { return null; }
+
+        var row = el('tr', 'is-derived');
+        var control = el('td', 'control');
+        control.appendChild(controlFor(spec.calc, null, shown));
+        row.appendChild(control);
+
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(spec.label));
+        if (spec.unit) { lab.appendChild(el('span', 'units', '[' + spec.unit + ']')); }
+        if (spec.from) { lab.appendChild(el('span', 'cli-name', spec.from)); }
+        row.appendChild(lab);
+
+        row.appendChild(el('td', 'was'));
+
+        var help = el('td', 'help');
+        var icon = el('div', 'helpicon', '?');
+        icon.title = 'The Configurator computes this from ' + (spec.from || 'the mixer setup')
+            + '. It is not a stored setting, so it has no firmware default.';
+        help.appendChild(icon);
+        row.appendChild(help);
+        return row;
+    }
+
     function layoutRow(spec, index) {
+        if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return null; }
+        if (spec.calc) { return derivedRow(spec); }
         var m = meta(spec.cli);
         if (!m) { return null; }
         if (!matchesFilter(spec.cli, spec.label)) { return null; }
@@ -2786,6 +3045,16 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
 
         var shown = format(sliceOf(shownAll, spec.idx), m, spec.cli);
         var def = format(sliceOf(defAll, spec.idx), m, spec.cli);
+
+        /* Where the Configurator words an enum differently from the firmware -
+         * `CP120` on the screen is "CCPM 120" - say it the way it does. */
+        if (spec.enum) {
+            var word = enumWord(spec.enum, lutIndexOf(m, sliceOf(shownAll, spec.idx)));
+            if (word !== null) { shown = word; }
+            var defWord = enumWord(spec.enum, lutIndexOf(m, sliceOf(defAll, spec.idx)));
+            if (defWord !== null) { def = defWord; }
+        }
+
         var changed = !!present && def !== null && shown !== def;
         if (state.onlyChanged && !changed) { return null; }
 

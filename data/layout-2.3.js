@@ -18,6 +18,71 @@
  */
 
 window.RF_LAYOUT = {
+
+    /* The Mixer tab, from src/tabs/mixer.html and src/js/tabs/mixer.js.
+     *
+     * Most of this page is not a setting. The Configurator derives it from the
+     * four stabilised `mixer input` lines and the mixer config, and the same
+     * stored number reaches the screen differently depending on the tail type:
+     * tail_center_trim is shown as degrees (x24/1000) for a variable-pitch
+     * tail and as a percentage (x0.1) for a motorised one. Rows marked `calc`
+     * name a function in app.js that does what mixer.js does, and `from` says
+     * which line of the file it read, so nothing here is a bare number with no
+     * stated origin.
+     */
+    mixer: {
+        boxes: [
+            { title: 'Main Rotor Settings', rows: [
+                { cli: 'swash_type', label: 'Swashplate Type', enum: 'js:swashTypes' },
+                { cli: 'main_rotor_dir', label: 'Main Rotor Direction', enum: 'mixerMainRotorDirection' },
+                { calc: 'aileronDirection', label: 'Aileron Control Direction',
+                  enum: 'mixerAileronDirection', from: 'mixer input SR' },
+                { calc: 'elevatorDirection', label: 'Elevator Control Direction',
+                  enum: 'mixerElevatorDirection', from: 'mixer input SP' },
+                { calc: 'collectiveDirection', label: 'Collective Control Direction',
+                  enum: 'mixerCollectiveDirection', from: 'mixer input SC' }
+            ] },
+
+            { title: 'Main Rotor Geometry', rows: [
+                { calc: 'cyclicCalibration', label: 'Cyclic calibration', unit: '%', from: 'mixer input SR' },
+                { calc: 'collectiveCalibration', label: 'Collective calibration', unit: '%', from: 'mixer input SC' },
+                { calc: 'collectiveGeoCorrection', label: 'Collective Geometry Correction', unit: '%',
+                  from: 'swash_geo_correction' },
+                { calc: 'cyclicLimit', label: 'Cyclic blade pitch limit', unit: '°', from: 'mixer input SP' },
+                { calc: 'collectiveLimit', label: 'Collective blade pitch limit', unit: '°', from: 'mixer input SC' },
+                { calc: 'totalPitchLimit', label: 'Total blade pitch limit', unit: '°', from: 'swash_pitch_limit' },
+                { calc: 'swashPhase', label: 'Swashplate phase angle', unit: '°', from: 'swash_phase' },
+                { cli: 'collective_tilt_correction_pos', label: 'Positive Collective Tilt Correction' },
+                { cli: 'collective_tilt_correction_neg', label: 'Negative Collective Tilt Correction' }
+            ] },
+
+            { title: 'Swashplate Trims', rows: [
+                { calc: 'swashRollTrim', label: 'Roll trim', unit: '%', from: 'swash_roll_trim' },
+                { calc: 'swashPitchTrim', label: 'Pitch trim', unit: '%', from: 'swash_pitch_trim' },
+                { calc: 'swashCollectiveTrim', label: 'Collective trim', unit: '%', from: 'swash_collective_trim' }
+            ] },
+
+            { title: 'Tail Rotor Settings', rows: [
+                { cli: 'tail_rotor_mode', label: 'Tail rotor type', enum: 'mixerTailRotorMode' },
+                { calc: 'tailRotorDirection', label: 'Yaw Control Direction',
+                  enum: 'mixerTailRotorDirection', from: 'mixer input SY' },
+                { calc: 'tailRotorCenterTrim', label: 'Yaw center trim',
+                  when: 'variableTail', from: 'tail_center_trim' },
+                { calc: 'tailMotorCenterTrim', label: 'Yaw center offset', unit: '%',
+                  when: 'motorisedTail', from: 'tail_center_trim' },
+                { calc: 'tailRotorCalibration', label: 'Yaw calibration', unit: '%', from: 'mixer input SY' },
+                { calc: 'tailRotorMinYaw', label: 'CW Yaw Blade Angle Limit',
+                  when: 'variableTail', from: 'mixer input SY' },
+                { calc: 'tailRotorMaxYaw', label: 'CCW Yaw Blade Angle Limit',
+                  when: 'variableTail', from: 'mixer input SY' },
+                { calc: 'tailMotorMinYaw', label: 'CW yaw limit', unit: '%',
+                  when: 'motorisedTail', from: 'mixer input SY' },
+                { calc: 'tailMotorMaxYaw', label: 'CCW yaw limit', unit: '%',
+                  when: 'motorisedTail', from: 'mixer input SY' },
+                { cli: 'tail_motor_idle', label: 'Motor idle throttle', unit: '%', when: 'motorisedTail' }
+            ] }
+        ]
+    },
     profiles: {
         scope: 'profile',
 
@@ -153,4 +218,16 @@ window.RF_LAYOUT = {
             ] }
         ]
     }
+};
+
+/* Firmware defaults for the stabilised mixer inputs, from rotorflight-firmware
+ * src/main/pg/mixer.c pgResetFn_mixerInputs(). A `diff all` only carries the
+ * lines that changed, so without these the Mixer tab would be blank for the
+ * ones that did not. */
+window.RF_MIXER_INPUT_DEFAULTS = {
+    SR: { min: -1250, max: 1250, rate: 250 },
+    SP: { min: -1250, max: 1250, rate: 250 },
+    SY: { min: -1250, max: 1250, rate: 250 },
+    SC: { min: -1250, max: 1250, rate: 250 },
+    ST: { min: 0, max: 1000, rate: 1000 }
 };

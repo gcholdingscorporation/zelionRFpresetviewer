@@ -318,11 +318,38 @@
 
     /* Settings on a tab that no curated panel picked up, grouped by their
      * firmware parameter group so the leftovers stay organised. */
-    function leftoverGroups(tabId) {
+    /* Every CLI setting a transcribed layout already puts on the page, so the
+     * generic renderer does not show it a second time with a raw value. */
+    function layoutNames(tabId) {
+        var layout = (window.RF_LAYOUT || {})[tabId];
+        var out = {};
+        if (!layout) { return out; }
+        function walk(specs) {
+            specs.forEach(function (spec) {
+                if (spec.rows) { walk(spec.rows); }
+                if (spec.cli) { out[spec.cli] = true; }
+                /* A derived row names the line it read in `from`; when that is
+                 * a setting, the layout has accounted for it too. */
+                if (spec.from && /^[a-z0-9_]+$/.test(spec.from)) { out[spec.from] = true; }
+            });
+        }
+        layout.boxes.forEach(function (box) { walk(box.rows); });
+        if (layout.matrix) {
+            layout.matrix.axes.forEach(function (axis) {
+                layout.matrix.terms.forEach(function (term) {
+                    out[axis.toLowerCase() + '_' + term.key + '_gain'] = true;
+                });
+            });
+        }
+        return out;
+    }
+
+    function leftoverGroups(tabId, skip) {
         var names = Object.keys(INDEX.byTab[tabId] ? INDEX.byTab[tabId].names : {});
         var groups = {};
         names.forEach(function (n) {
-            if (INDEX.claimed[n]) { return; }
+            if (INDEX.claimed[n] && !(skip && skip.sections)) { return; }
+            if (skip && skip.names[n]) { return; }
             var m = meta(n);
             var key = m && m.pg ? m.pg : 'UNKNOWN';
             (groups[key] || (groups[key] = [])).push(n);
@@ -348,7 +375,9 @@
         var rendered = 0;
         var seen = {};
 
-        S.SECTIONS.filter(function (s) { return s.tab === tabId; }).forEach(function (sec) {
+        var skip = opts.skip ? { names: opts.skip, sections: true } : null;
+
+        (skip ? [] : S.SECTIONS.filter(function (s) { return s.tab === tabId; })).forEach(function (sec) {
             var secScope = sec.profileScope ? 'profile'
                          : sec.rateScope ? 'rateprofile' : 'master';
             var secIndex = secScope === 'profile' ? state.profile
@@ -368,8 +397,9 @@
             if (n) { grid.appendChild(box); rendered += n; }
         });
 
-        leftoverGroups(tabId).forEach(function (g) {
-            var box = panel(S.pgTitle(g.pg), g.pg === 'UNKNOWN' ? 'unrecognised' : '');
+        leftoverGroups(tabId, skip).forEach(function (g) {
+            var box = panel(S.pgTitle(g.pg), opts.hint !== undefined ? opts.hint
+                : (g.pg === 'UNKNOWN' ? 'unrecognised' : ''));
             var body = settingsTable(box);
             var n = 0;
             g.names.forEach(function (name) {
@@ -707,6 +737,9 @@
     function renderMixer() {
         var frag = document.createDocumentFragment();
 
+        var laid = renderLayoutTab('mixer');
+        if (laid) { frag.appendChild(laid); }
+
         var inputs = rows('mixerInput');
         var ib = panel('Mixer Inputs', inputs.length + ' overridden');
         panelBody(ib).appendChild(table(
@@ -737,7 +770,11 @@
             frag.appendChild(ob);
         }
 
-        frag.appendChild(renderSettingsTab('mixer', { quiet: true }));
+        frag.appendChild(renderSettingsTab('mixer', {
+            quiet: true,
+            skip: layoutNames('mixer'),
+            hint: 'not on the Configurator\u2019s Mixer tab'
+        }));
         return frag;
     }
 
@@ -946,7 +983,145 @@
         return null;
     }
 
+
+    // ---------------------------------------------------- derived page values
+    //
+    // The Mixer tab shows almost nothing the CLI stores directly: the pitch
+    // limits, calibrations and control directions are all worked out from the
+    // four stabilised `mixer input` lines and a handful of mixer settings.
+    // These do the same arithmetic as the Configurator's src/js/tabs/mixer.js,
+    // with the same constants, so the page reads the way the pilot's did.
+
+    function mixerInput(name) {
+        var found = null;
+        rows('mixerInput').forEach(function (r) {
+            if (r.input === name) { found = r; }
+        });
+        if (found) { return found; }
+        // A `diff all` carries only the lines that changed; the rest are stock.
+        var stock = (window.RF_MIXER_INPUT_DEFAULTS || {})[name];
+        return stock ? { input: name, min: stock.min, max: stock.max, rate: stock.rate } : null;
+    }
+
+    function masterValue(name) {
+        var present = entryFor(name, 'master', null);
+        if (present) { return present.value; }
+        var m = meta(name);
+        return m && m.d !== undefined ? m.d : null;
+    }
+
+    /* A lookup setting reaches us as the firmware's symbol when it came from a
+     * file and as an index when it came from the defaults; the index is what
+     * the Configurator's dropdowns are keyed by. */
+    function lutIndexOf(m, value) {
+        if (typeof value === 'number') { return value; }
+        var table = lut(m);
+        if (!table) { return null; }
+        var i = table.indexOf(value);
+        return i < 0 ? null : i;
+    }
+
+    function lookupIndex(name) {
+        return lutIndexOf(meta(name), masterValue(name));
+    }
+
+    /* The Configurator's own wording for an enumerated value. */
+    function enumWord(key, value) {
+        if (value === null || value === undefined) { return null; }
+        var table = ((window.RF_ENUMS || {}).byId || {})[key];
+        if (!table) { return null; }
+        var word = table[String(value)];
+        return word === undefined ? null : word;
+    }
+
+    var WHEN = {
+        variableTail: function () { return lookupIndex('tail_rotor_mode') === 0; },
+        motorisedTail: function () { return lookupIndex('tail_rotor_mode') > 0; }
+    };
+
+    function times(value, factor, places) {
+        if (value === null || value === undefined || isNaN(value)) { return null; }
+        return (Number(value) * factor).toFixed(places === undefined ? 1 : places);
+    }
+
+    function inputField(name, key) {
+        var input = mixerInput(name);
+        return input ? Number(input[key]) : null;
+    }
+
+    function signOf(value) {
+        return value === null || value === undefined ? null : (value < 0 ? -1 : 1);
+    }
+
+    function magnitude(value, factor) {
+        return value === null ? null : times(Math.abs(value), factor);
+    }
+
+    var DERIVED = {
+        aileronDirection:    function () { return signOf(inputField('SR', 'rate')); },
+        elevatorDirection:   function () { return signOf(inputField('SP', 'rate')); },
+        collectiveDirection: function () { return signOf(inputField('SC', 'rate')); },
+        tailRotorDirection:  function () { return signOf(inputField('SY', 'rate')); },
+
+        cyclicCalibration:     function () { return magnitude(inputField('SR', 'rate'), 0.1); },
+        collectiveCalibration: function () { return magnitude(inputField('SC', 'rate'), 0.1); },
+        tailRotorCalibration:  function () { return magnitude(inputField('SY', 'rate'), 0.1); },
+
+        cyclicLimit:     function () { return times(inputField('SP', 'max'), 12 / 1000); },
+        collectiveLimit: function () { return times(inputField('SC', 'max'), 12 / 1000); },
+        totalPitchLimit: function () { return times(masterValue('swash_pitch_limit'), 12 / 1000); },
+
+        collectiveGeoCorrection: function () { return times(masterValue('swash_geo_correction'), 1 / 5); },
+        swashPhase:              function () { return times(masterValue('swash_phase'), 0.1); },
+        swashRollTrim:           function () { return times(masterValue('swash_roll_trim'), 0.1); },
+        swashPitchTrim:          function () { return times(masterValue('swash_pitch_trim'), 0.1); },
+        swashCollectiveTrim:     function () { return times(masterValue('swash_collective_trim'), 0.1); },
+
+        tailRotorCenterTrim: function () { return times(masterValue('tail_center_trim'), 24 / 1000); },
+        tailMotorCenterTrim: function () { return times(masterValue('tail_center_trim'), 0.1); },
+        tailRotorMinYaw:     function () { return times(inputField('SY', 'min'), -24 / 1000); },
+        tailRotorMaxYaw:     function () { return times(inputField('SY', 'max'), 24 / 1000); },
+        tailMotorMinYaw:     function () { return times(inputField('SY', 'min'), -0.1); },
+        tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
+    };
+
+    /* A row the Configurator computes rather than stores. It carries no "was",
+     * because there is no single firmware default to compare one against. */
+    function derivedRow(spec) {
+        var fn = DERIVED[spec.calc];
+        if (!fn) { return null; }
+        var value = fn();
+        if (value === null) { return null; }
+        var shown = spec.enum ? enumWord(spec.enum, value) : String(value);
+        if (shown === null) { return null; }
+        if (state.onlyChanged) { return null; }
+        if (!matchesFilter(spec.from || spec.calc, spec.label)) { return null; }
+
+        var row = el('tr', 'is-derived');
+        var control = el('td', 'control');
+        control.appendChild(controlFor(spec.calc, null, shown));
+        row.appendChild(control);
+
+        var lab = el('td', 'label');
+        lab.appendChild(document.createTextNode(spec.label));
+        if (spec.unit) { lab.appendChild(el('span', 'units', '[' + spec.unit + ']')); }
+        if (spec.from) { lab.appendChild(el('span', 'cli-name', spec.from)); }
+        row.appendChild(lab);
+
+        row.appendChild(el('td', 'was'));
+
+        var help = el('td', 'help');
+        var icon = el('div', 'helpicon', '?');
+        icon.title = 'The Configurator computes this from ' + (spec.from || 'the mixer setup')
+            + '. It is not a stored setting, so it has no firmware default.';
+        help.appendChild(icon);
+        row.appendChild(help);
+        return row;
+    }
+
     function layoutRow(spec, index) {
+        if (spec.when && WHEN[spec.when] && !WHEN[spec.when]()) { return null; }
+        if (spec.calc) { return derivedRow(spec); }
         var m = meta(spec.cli);
         if (!m) { return null; }
         if (!matchesFilter(spec.cli, spec.label)) { return null; }
@@ -960,6 +1135,16 @@
 
         var shown = format(sliceOf(shownAll, spec.idx), m, spec.cli);
         var def = format(sliceOf(defAll, spec.idx), m, spec.cli);
+
+        /* Where the Configurator words an enum differently from the firmware -
+         * `CP120` on the screen is "CCPM 120" - say it the way it does. */
+        if (spec.enum) {
+            var word = enumWord(spec.enum, lutIndexOf(m, sliceOf(shownAll, spec.idx)));
+            if (word !== null) { shown = word; }
+            var defWord = enumWord(spec.enum, lutIndexOf(m, sliceOf(defAll, spec.idx)));
+            if (defWord !== null) { def = defWord; }
+        }
+
         var changed = !!present && def !== null && shown !== def;
         if (state.onlyChanged && !changed) { return null; }
 
