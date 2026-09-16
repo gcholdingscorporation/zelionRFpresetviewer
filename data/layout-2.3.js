@@ -19,6 +19,53 @@
 
 window.RF_LAYOUT = {
 
+    /* The Power tab, from src/tabs/power.html and src/js/tabs/power.js.
+     *
+     * Power State and the live meter readings are telemetry; only the
+     * configuration below comes out of a file. `div` is a display divisor the
+     * MSP layer applies rather than the tab (MSPHelper.js reads the cell
+     * voltages as readU16()/100), which is why it is not in scales-2.3.js.
+     */
+    power: {
+        boxes: [
+            { title: 'Battery', rows: [
+                { cli: 'battery_meter', label: 'Battery Voltage Source', enum: 'batteryMeterTypes' },
+                { cli: 'current_meter', label: 'Battery Current Source', enum: 'batteryMeterTypes' },
+                { cli: 'vbat_max_cell_voltage', label: 'Maximum Cell Voltage', div: 100, dp: 2 },
+                { cli: 'vbat_full_cell_voltage', label: 'Full Cell Voltage', div: 100, dp: 2 },
+                { cli: 'vbat_warning_cell_voltage', label: 'Warning Cell Voltage', div: 100, dp: 2 },
+                { cli: 'vbat_min_cell_voltage', label: 'Minimum Cell Voltage', div: 100, dp: 2 },
+                { cli: 'battery_cell_count', label: 'Cell count' },
+                { sub: 'Capacity [mAh]' },
+                { cli: 'bat_capacity', idx: 0, label: 'Battery 1', unit: 'mAh', active: 'bat_profile' },
+                { cli: 'bat_capacity', idx: 1, label: 'Battery 2', unit: 'mAh', active: 'bat_profile' },
+                { cli: 'bat_capacity', idx: 2, label: 'Battery 3', unit: 'mAh', active: 'bat_profile' },
+                { cli: 'bat_capacity', idx: 3, label: 'Battery 4', unit: 'mAh', active: 'bat_profile' },
+                { cli: 'bat_capacity', idx: 4, label: 'Battery 5', unit: 'mAh', active: 'bat_profile' },
+                { cli: 'bat_capacity', idx: 5, label: 'Battery 6', unit: 'mAh', active: 'bat_profile' }
+            ] },
+
+            { title: 'Smart Fuel', ver: '>=4.6', rows: [
+                { cli: 'smartfuel', label: 'Smart Fuel Mode', enum: 'smartFuelSourceTypes' },
+                { cli: 'smartfuel_voltage_drop_rate', label: 'Smart Fuel Voltage Drop Rate', unit: 'mV/s' },
+                { cli: 'smartfuel_charge_drop_rate', label: 'Smart Fuel Charge Drop Rate', unit: '%/s', div: 100 },
+                { cli: 'smartfuel_sag_gain', label: 'Smart Fuel Sag Gain', unit: '%' }
+            ] },
+
+            { title: 'Voltage Meters', rows: [
+                { sub: 'Battery' },
+                { cli: 'vbat_scale', label: 'Scale' },
+                { cli: 'vbat_divider', label: 'Divider' },
+                { sub: 'BEC' },
+                { cli: 'vbec_scale', label: 'Scale' },
+                { cli: 'vbec_divider', label: 'Divider' },
+                { sub: '5V' },
+                { cli: 'vbus_scale', label: 'Scale' },
+                { cli: 'vbus_divider', label: 'Divider' }
+            ] }
+        ]
+    },
+
     /* The Motors tab, from src/tabs/motors/*.svelte.
      *
      * Rotor Speed, Throttle Override and the per-motor panels are live
@@ -339,6 +386,11 @@ window.RF_MIXER_INPUT_DEFAULTS = {
  * tools/gen_enums.py cannot read it from a dropdown. Transcribed, with the
  * entries each API version adds, from src/tabs/motors/state.svelte.js. */
 window.RF_ENUM_LISTS = {
+    /* src/js/tabs/power.js getBatteryMeterTypes()/getSmartFuelSourceTypes(),
+     * with the entry API 12.9 adds. */
+    batteryMeterTypes: ['None', 'Battery ADC', 'ESC Telemetry', 'FrSky Sensor'],
+    smartFuelSourceTypes: ['Off', 'Voltage', 'Current', 'Combined'],
+
     escTelemetryProtocols: [
         'Disabled', 'BLHeli32', 'Hobbywing Platinum V4 / FlyFun V5',
         'Hobbywing Platinum V5', 'Scorpion', 'Kontronik', 'OMPHobby', 'ZTW',

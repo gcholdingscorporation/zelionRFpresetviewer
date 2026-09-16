@@ -1077,6 +1077,15 @@
         }
     };
 
+    /* The legacy tabs round a number input to the decimals its `step`
+     * attribute implies, but only once a change event has fired on it, so two
+     * fields with the same step can print 4.30 and 0.5. `dp` records which. */
+    function divide(text, factor, places) {
+        if (text === null || text === undefined || isNaN(Number(text))) { return text; }
+        var value = Number(text) / factor;
+        return places === undefined ? String(value) : value.toFixed(places);
+    }
+
     function times(value, factor, places) {
         if (value === null || value === undefined || isNaN(value)) { return null; }
         return (Number(value) * factor).toFixed(places === undefined ? 1 : places);
@@ -1236,10 +1245,21 @@
             if (defWord !== null) { def = defWord; }
         }
 
+        /* A divisor the MSP layer applies rather than the tab. */
+        if (spec.div) {
+            shown = divide(shown, spec.div, spec.dp);
+            def = divide(def, spec.div, spec.dp);
+        }
+
         var changed = !!present && def !== null && shown !== def;
         if (state.onlyChanged && !changed) { return null; }
 
-        var row = el('tr', changed ? 'is-changed' : null);
+        var classes = changed ? 'is-changed' : '';
+        /* The Configurator highlights the battery profile in use. */
+        if (spec.active && masterValue(spec.active) === spec.idx) {
+            classes += (classes ? ' ' : '') + 'is-active';
+        }
+        var row = el('tr', classes || null);
 
         var control = el('td', 'control');
         control.appendChild(controlFor(spec.cli, m, shown));
@@ -1369,6 +1389,7 @@
         }
 
         layout.boxes.forEach(function (box) {
+            if (!versionOk(box.ver)) { return; }
             var gui = panel(box.title, layout.scope
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
 
