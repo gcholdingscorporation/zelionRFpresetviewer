@@ -134,6 +134,26 @@ def js_lists(cfg, messages, by_id):
         by_id.setdefault('js:' + listname, {}).update(table)
 
 
+def adjustment_functions(cfg, messages):
+    """The adjustment names, in firmware id order.
+
+    src/js/tabs/adjustments.js builds its dropdown from getFunctions(), a list
+    of `{ id, name, ... }` whose `name` is half of a locale key. The ids are the
+    numbers an `adjfunc` line carries, so the list is read in order rather than
+    the CLI's own shorter names being reused.
+    """
+    path = os.path.join(cfg, 'src', 'js', 'tabs', 'adjustments.js')
+    if not os.path.exists(path):
+        return {}
+    text = read(path)
+    out = {}
+    for m in re.finditer(r"\{\s*id:\s*(\d+),\s*name:\s*'([^']+)'", text):
+        word = messages.get('adjustmentsFunction' + m.group(2))
+        if word:
+            out[m.group(1)] = word
+    return out
+
+
 def main():
     if len(sys.argv) != 3:
         raise SystemExit(__doc__)
@@ -148,6 +168,10 @@ def main():
     by_id = {}
     selects_from_html(cfg, messages, by_id)
     js_lists(cfg, messages, by_id)
+    adjustments = adjustment_functions(cfg, messages)
+    if adjustments:
+        by_id['adjustmentFunctions'] = adjustments
+        print('%d adjustment functions named' % len(adjustments))
     print('%d dropdowns read' % len(by_id))
 
     # A dropdown whose id names a CLI setting gives that setting its wording.

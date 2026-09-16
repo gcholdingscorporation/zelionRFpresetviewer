@@ -684,21 +684,28 @@
         var funcs = extras('adjfuncs');
         var used = rows('adjfunc').filter(function (a) { return a.func; });
 
-        var box = panel('Adjustment Functions',
+        /* adjustments.js: a slot is Off with no function, Stepped when it
+         * carries a step, and Mapped otherwise. The function names are the
+         * Configurator's own, which are longer than the CLI's. */
+        var named = ((window.RF_ENUMS || {}).byId || {}).adjustmentFunctions || {};
+        var box = panel('Adjustments',
             used.length + ' of ' + rows('adjfunc').length + ' slots in use');
         panelBody(box).appendChild(table(
-            ['Slot', 'Function', 'Enable ch', 'Enable range', 'Adjust ch',
-             'Range 1', 'Range 2', 'Step', 'Min', 'Max'],
+            ['Slot', 'Mode', 'Function', 'Enable Channel', 'Enable range',
+             'Value Channel', 'Value range', 'Value Ranges', 'Step'],
             used.map(function (a) {
+                var mode = !a.func ? 'Off' : (a.step > 0 ? 'Stepped' : 'Mapped');
                 return [
                     { text: a.slot, cls: 'name' },
-                    { text: funcs[a.func] || ('id ' + a.func), cls: 'name' },
-                    a.enaChannel === 255 ? 'always' : channelName(a.enaChannel),
-                    a.enaStart + ' – ' + a.enaEnd,
-                    a.adjChannel === 255 ? '—' : channelName(a.adjChannel),
-                    a.adj1Start + ' – ' + a.adj1End,
-                    a.adj2Start + ' – ' + a.adj2End,
-                    a.step, a.min, a.max
+                    { text: mode, cls: 'name' },
+                    { text: named[String(a.func)] || funcs[a.func] || ('id ' + a.func),
+                      cls: 'name' },
+                    a.enaChannel === 255 ? 'ALWAYS' : channelName(a.enaChannel),
+                    a.enaStart + ' \u2013 ' + a.enaEnd,
+                    a.adjChannel === 255 ? 'AUTO' : channelName(a.adjChannel),
+                    a.adj1Start + ' \u2013 ' + a.adj1End,
+                    a.min + ' \u2013 ' + a.max,
+                    a.step
                 ];
             }),
             { empty: 'No adjustment functions are configured in this file.' }));
