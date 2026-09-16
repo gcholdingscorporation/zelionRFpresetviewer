@@ -19,6 +19,60 @@
 
 window.RF_LAYOUT = {
 
+    /* The Configuration tab, from src/tabs/configuration.html and
+     * src/js/tabs/configuration.js.
+     *
+     * Two things on this page cannot come out of a file at all. The gyro update
+     * frequency is the board's own sample rate, reported over MSP, and the PID
+     * loop frequency is that rate divided by pid_process_denom - so the viewer
+     * shows the divisor and says what it divides. The serial port names
+     * (S.BUS, TELEM, Int.Rx) come from the target definition, not the file, so
+     * the Ports tab lists them by UART number instead.
+     */
+    configuration: {
+        boxes: [
+            { title: 'Personalization', rows: [
+                { cli: 'name', label: 'Craft name' },
+                { cli: 'model_id', label: 'Model Id' }
+            ] },
+
+            { title: 'Flight Statistics', rows: [
+                { toggle: 'flightStats', label: 'Record Flight Statistics' },
+                { cli: 'stats_min_armed_time_s', label: 'Minimum flight time', unit: 's',
+                  when: 'flightStats' },
+                { cli: 'stats_total_flights', label: 'Flight Count' },
+                { calc: 'flightTime', label: 'Flight Time', from: 'stats_total_time_s' },
+                { cli: 'stats_total_dist_m', label: 'Distance', unit: 'm' }
+            ] },
+
+            { title: 'System configuration', rows: [
+                { cli: 'pid_process_denom', label: 'PID loop frequency' },
+                { toggle: 'accelerometer', label: 'Accelerometer' },
+                { toggle: 'barometer', label: 'Barometer' },
+                { toggle: 'magnetometer', label: 'Magnetometer' }
+            ] },
+
+            /* Features.GROUPS.OTHER in src/js/features.svelte.js. */
+            { title: 'Features', rows: [
+                { feature: 'GPS', label: 'GPS', desc: 'GPS for telemetry' },
+                { feature: 'LED_STRIP', label: 'LED_STRIP', desc: 'RGB LED Strip support' },
+                { feature: 'CMS', label: 'CMS', desc: 'Configuration Menu System' }
+            ] },
+
+            { title: 'Board and Sensor Alignment', rows: [
+                { cli: 'align_board_roll', label: 'Roll Degrees' },
+                { cli: 'align_board_pitch', label: 'Pitch Degrees' },
+                { cli: 'align_board_yaw', label: 'Yaw Degrees' },
+                { cli: 'align_mag', label: 'MAG Alignment' }
+            ] },
+
+            { title: 'Accelerometer Trim', rows: [
+                { cli: 'acc_trim_roll', label: 'Accelerometer Roll Trim' },
+                { cli: 'acc_trim_pitch', label: 'Accelerometer Pitch Trim' }
+            ] }
+        ]
+    },
+
     /* The Gyro tab, from src/tabs/gyro/*.svelte.
      *
      * Each filter here is switched on by a value rather than by a flag - a

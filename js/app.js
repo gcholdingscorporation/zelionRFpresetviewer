@@ -1275,6 +1275,12 @@
             return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
         },
         dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        /* configuration.js: the sensor switches are on unless the hardware is
+         * set to NONE (index 1), and statistics are off at -1. */
+        accelerometer: function () { return lookupIndex('acc_hardware') !== 1; },
+        barometer: function () { return lookupIndex('baro_hardware') !== 1; },
+        magnetometer: function () { return lookupIndex('mag_hardware') !== 1; },
+        flightStats: function () { return masterValue('stats_min_armed_time_s') >= 0; },
         rescueAltHold: function () {
             var present = entryFor('rescue_mode', 'profile', state.profile);
             var m = meta('rescue_mode');
@@ -1366,7 +1372,17 @@
         tailRotorMinYaw:     function () { return times(inputField('SY', 'min'), -24 / 1000); },
         tailRotorMaxYaw:     function () { return times(inputField('SY', 'max'), 24 / 1000); },
         tailMotorMinYaw:     function () { return times(inputField('SY', 'min'), -0.1); },
-        tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
+        tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); },
+
+        /* configuration.js shows the total as whole hours and minutes. */
+        flightTime: function () {
+            var seconds = masterValue('stats_total_time_s');
+            if (seconds === null || seconds === undefined) { return null; }
+            var hours = Math.floor(seconds / 3600);
+            var minutes = Math.floor((seconds / 60) % 60);
+            return hours + (hours === 1 ? ' hour ' : ' hours ')
+                + minutes + (minutes === 1 ? ' minute' : ' minutes');
+        }
     };
 
     /* A switch the Configurator derives from the values it governs rather than
@@ -1389,9 +1405,13 @@
         var on = featureOn(spec.feature);
         if (state.onlyChanged) { return null; }
         if (!matchesFilter('feature ' + spec.feature, spec.label)) { return null; }
-        return simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
+        var row = simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
             'feature ' + spec.feature,
             'Read from the file\u2019s `feature` lines, not from a `set`.');
+        if (spec.desc) {
+            row.querySelector('td.label').appendChild(el('span', 'dim', spec.desc));
+        }
+        return row;
     }
 
     /* A gear ratio is a pair, and the Configurator prints the ratio it works
@@ -1434,7 +1454,7 @@
         var fn = DERIVED[spec.calc];
         if (!fn) { return null; }
         var value = fn();
-        if (value === null) { return null; }
+        if (value === null || value === undefined) { return null; }
         var shown = spec.enum ? enumWord(spec.enum, value) : String(value);
         if (shown === null) { return null; }
         if (state.onlyChanged) { return null; }

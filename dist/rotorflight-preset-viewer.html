@@ -794,6 +794,60 @@ window.RF_LABELS = {"acc_trim_pitch":{"l":"Accelerometer Pitch Trim","s":"Accele
 
 window.RF_LAYOUT = {
 
+    /* The Configuration tab, from src/tabs/configuration.html and
+     * src/js/tabs/configuration.js.
+     *
+     * Two things on this page cannot come out of a file at all. The gyro update
+     * frequency is the board's own sample rate, reported over MSP, and the PID
+     * loop frequency is that rate divided by pid_process_denom - so the viewer
+     * shows the divisor and says what it divides. The serial port names
+     * (S.BUS, TELEM, Int.Rx) come from the target definition, not the file, so
+     * the Ports tab lists them by UART number instead.
+     */
+    configuration: {
+        boxes: [
+            { title: 'Personalization', rows: [
+                { cli: 'name', label: 'Craft name' },
+                { cli: 'model_id', label: 'Model Id' }
+            ] },
+
+            { title: 'Flight Statistics', rows: [
+                { toggle: 'flightStats', label: 'Record Flight Statistics' },
+                { cli: 'stats_min_armed_time_s', label: 'Minimum flight time', unit: 's',
+                  when: 'flightStats' },
+                { cli: 'stats_total_flights', label: 'Flight Count' },
+                { calc: 'flightTime', label: 'Flight Time', from: 'stats_total_time_s' },
+                { cli: 'stats_total_dist_m', label: 'Distance', unit: 'm' }
+            ] },
+
+            { title: 'System configuration', rows: [
+                { cli: 'pid_process_denom', label: 'PID loop frequency' },
+                { toggle: 'accelerometer', label: 'Accelerometer' },
+                { toggle: 'barometer', label: 'Barometer' },
+                { toggle: 'magnetometer', label: 'Magnetometer' }
+            ] },
+
+            /* Features.GROUPS.OTHER in src/js/features.svelte.js. */
+            { title: 'Features', rows: [
+                { feature: 'GPS', label: 'GPS', desc: 'GPS for telemetry' },
+                { feature: 'LED_STRIP', label: 'LED_STRIP', desc: 'RGB LED Strip support' },
+                { feature: 'CMS', label: 'CMS', desc: 'Configuration Menu System' }
+            ] },
+
+            { title: 'Board and Sensor Alignment', rows: [
+                { cli: 'align_board_roll', label: 'Roll Degrees' },
+                { cli: 'align_board_pitch', label: 'Pitch Degrees' },
+                { cli: 'align_board_yaw', label: 'Yaw Degrees' },
+                { cli: 'align_mag', label: 'MAG Alignment' }
+            ] },
+
+            { title: 'Accelerometer Trim', rows: [
+                { cli: 'acc_trim_roll', label: 'Accelerometer Roll Trim' },
+                { cli: 'acc_trim_pitch', label: 'Accelerometer Pitch Trim' }
+            ] }
+        ]
+    },
+
     /* The Gyro tab, from src/tabs/gyro/*.svelte.
      *
      * Each filter here is switched on by a value rather than by a flag - a
@@ -3510,6 +3564,12 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             return masterValue('gyro_notch2_hz') > 0 && masterValue('gyro_notch2_cutoff') > 0;
         },
         dynNotch: function () { return masterValue('dyn_notch_count') > 0; },
+        /* configuration.js: the sensor switches are on unless the hardware is
+         * set to NONE (index 1), and statistics are off at -1. */
+        accelerometer: function () { return lookupIndex('acc_hardware') !== 1; },
+        barometer: function () { return lookupIndex('baro_hardware') !== 1; },
+        magnetometer: function () { return lookupIndex('mag_hardware') !== 1; },
+        flightStats: function () { return masterValue('stats_min_armed_time_s') >= 0; },
         rescueAltHold: function () {
             var present = entryFor('rescue_mode', 'profile', state.profile);
             var m = meta('rescue_mode');
@@ -3601,7 +3661,17 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         tailRotorMinYaw:     function () { return times(inputField('SY', 'min'), -24 / 1000); },
         tailRotorMaxYaw:     function () { return times(inputField('SY', 'max'), 24 / 1000); },
         tailMotorMinYaw:     function () { return times(inputField('SY', 'min'), -0.1); },
-        tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); }
+        tailMotorMaxYaw:     function () { return times(inputField('SY', 'max'), 0.1); },
+
+        /* configuration.js shows the total as whole hours and minutes. */
+        flightTime: function () {
+            var seconds = masterValue('stats_total_time_s');
+            if (seconds === null || seconds === undefined) { return null; }
+            var hours = Math.floor(seconds / 3600);
+            var minutes = Math.floor((seconds / 60) % 60);
+            return hours + (hours === 1 ? ' hour ' : ' hours ')
+                + minutes + (minutes === 1 ? ' minute' : ' minutes');
+        }
     };
 
     /* A switch the Configurator derives from the values it governs rather than
@@ -3624,9 +3694,13 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         var on = featureOn(spec.feature);
         if (state.onlyChanged) { return null; }
         if (!matchesFilter('feature ' + spec.feature, spec.label)) { return null; }
-        return simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
+        var row = simpleRow(spec.label, spec.unit, on ? 'ON' : 'OFF',
             'feature ' + spec.feature,
             'Read from the file\u2019s `feature` lines, not from a `set`.');
+        if (spec.desc) {
+            row.querySelector('td.label').appendChild(el('span', 'dim', spec.desc));
+        }
+        return row;
     }
 
     /* A gear ratio is a pair, and the Configurator prints the ratio it works
@@ -3669,7 +3743,7 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         var fn = DERIVED[spec.calc];
         if (!fn) { return null; }
         var value = fn();
-        if (value === null) { return null; }
+        if (value === null || value === undefined) { return null; }
         var shown = spec.enum ? enumWord(spec.enum, value) : String(value);
         if (shown === null) { return null; }
         if (state.onlyChanged) { return null; }
