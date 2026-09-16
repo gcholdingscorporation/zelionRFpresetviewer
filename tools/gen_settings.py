@@ -134,6 +134,8 @@ def walk_c_files(root, exts=('.c', '.h')):
 class Symbols:
     def __init__(self):
         self.values = {}
+        # Names whose #define differs between targets or feature builds.
+        self.conflicting = set()
 
     def load_tree(self, main_dir):
         define_re = re.compile(
@@ -151,9 +153,17 @@ class Symbols:
                 if m:
                     name, val = m.group(1), m.group(2).replace('(', '').replace(')', '').strip()
                     try:
-                        self.values.setdefault(name, int(val, 0))
+                        number = int(val, 0)
                     except ValueError:
-                        pass
+                        continue
+                    # A macro defined more than once with different values is
+                    # per-target or per-feature - ESC_SENSOR_TASK_FREQ_HZ is 50
+                    # generically and 100, 200 or 250 depending on the board.
+                    # There is no one answer, so the name is retired rather than
+                    # resolved to whichever definition was read first.
+                    if name in self.values and self.values[name] != number:
+                        self.conflicting.add(name)
+                    self.values.setdefault(name, number)
                     continue
                 m = alias_re.match(line)
                 if m:
@@ -197,7 +207,12 @@ class Symbols:
                 counter += 1
 
     def eval_expr(self, expr):
-        """Evaluate a simple integer C expression, or return None."""
+        """Evaluate a simple integer C expression, or return None.
+
+        A name whose definition depends on the build is not evaluated at all:
+        answering with one target's number would be worse than admitting the
+        default is not knowable from the source alone.
+        """
         expr = expr.strip()
         if not expr:
             return None
@@ -211,9 +226,18 @@ class Symbols:
             return 0
         if expr == 'INIT_ZERO':
             return 0
+        # A character literal is a number: serialConfig->reboot_character = 'R'.
+        m = re.fullmatch(r"'(\\?.)'", expr)
+        if m:
+            text = m.group(1)
+            escapes = {'\\0': 0, '\\n': 10, '\\r': 13, '\\t': 9}
+            return escapes.get(text, ord(text[-1]))
         # BIT(x) is the firmware's bit-position macro (src/main/common/utils.h).
         expr = re.sub(r'\bBIT\s*\(([^()]*)\)', r'(1 << (\1))', expr)
         # Substitute known symbols, then evaluate if only arithmetic remains.
+        if any(re.search(r'\b%s\b' % re.escape(name), expr)
+               for name in self.conflicting):
+            return None
         substituted = re.sub(
             r'[A-Za-z_]\w*',
             lambda m: str(self.values[m.group(0)]) if m.group(0) in self.values else m.group(0),
@@ -500,13 +524,36 @@ def parse_reset_functions(text, symbols, defaults):
             i += 1
         body = text[open_brace + 1:i]
         bucket = defaults.setdefault(struct, {})
+
+        # Two assignments to the same field inside one reset function are the
+        # two sides of an #if on an optional feature - ledstrip_profile is
+        # STATUS with the status modes built in and RACE without - so the field
+        # has no one default and is left unresolved rather than guessed.
+        seen = {}
         for am in re.finditer(
                 r'\b%s\s*->\s*([A-Za-z_]\w*(?:\s*\.\s*[A-Za-z_]\w*|\s*\[[^\];]*\])*)'
                 r'\s*=\s*([^;]+);' % re.escape(var), body):
             path = normalise_path(am.group(1), symbols)
             val = symbols.eval_expr(am.group(2))
+            if val is None:
+                continue
+            if path in seen and seen[path] != val:
+                seen[path] = None
+            else:
+                seen.setdefault(path, val)
+        for path, val in seen.items():
             if val is not None:
                 bucket.setdefault(path, val)
+
+        # `memset(cfg->field, VALUE, sizeof(cfg->field))` fills an array with a
+        # byte, which is how fbusMasterConfig marks every slot invalid. Without
+        # this the array reads as all zeros, which is a real setting elsewhere.
+        for mm in re.finditer(
+                r'memset\s*\(\s*%s\s*->\s*([A-Za-z_]\w*)\s*,\s*([^,]+),' % re.escape(var),
+                body):
+            val = symbols.eval_expr(mm.group(2))
+            if val is not None:
+                bucket.setdefault(mm.group(1) + '.*', val)
 
 
 def parse_defaults(main_dir, symbols):
@@ -558,6 +605,11 @@ def resolve_default(entry, defaults, symbols):
         val = table[path]
         if count and not isinstance(val, list):
             return [val] * count
+        # An array initialiser may be shorter than the array: the C rule is
+        # that the rest is zero, and the CLI prints all of it, so a short
+        # default would compare unequal against every file.
+        if count and isinstance(val, list) and len(val) < count:
+            return val + [0] * (count - len(val))
         return val
 
     # A `for` loop in a reset function assigns every element the same value.

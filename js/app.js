@@ -90,11 +90,27 @@
         return state.db.luts[m.lut] || null;
     }
 
+    /* An empty name is printed as a dash by the CLI, so an empty default has
+     * to be shown the same way or every unnamed profile reads as changed. */
+    function emptyName(m, value) {
+        return m && m.m === 'string' && (value === '' || value === 0);
+    }
+
+    /* A MODE_BITSET setting is one bit of a flags word, and the CLI prints it
+     * as OFF or ON rather than as the number it is stored in. */
+    function bitsetWord(m, value) {
+        if (!m || m.m !== 'bitset' || typeof value !== 'number') { return null; }
+        return value ? 'ON' : 'OFF';
+    }
+
     /* The CLI prints enum settings by name, so a default stored as an index has
      * to be mapped through the same table before the two can be compared. */
     function defaultDisplay(name) {
         var m = meta(name);
         if (!m || m.d === undefined) { return null; }
+        if (emptyName(m, m.d)) { return '-'; }
+        var bit = bitsetWord(m, m.d);
+        if (bit) { return bit; }
         var table = lut(m);
         if (table && typeof m.d === 'number' && table[m.d] !== undefined) {
             return table[m.d];
@@ -1241,6 +1257,18 @@
 
         var box = panel('Every value in this file',
             list.length + ' of ' + all.length + ' shown');
+
+        /* Worth saying plainly, because the column invites the comparison a
+         * `diff all` makes and will not always agree with it. */
+        var caveat = el('div', 'note',
+            'The default column is the firmware\u2019s own, read from its source. '
+            + 'A board sets some of its own on top of those \u2013 the voltage '
+            + 'dividers, the bus and pin assignments, the gyro alignment \u2013 and '
+            + 'those are in the board\u2019s configuration rather than the firmware\u2019s, '
+            + 'so a hardware setting can be shown as changed when the aircraft has it '
+            + 'at its board default. Flight tuning is unaffected.');
+        panelBody(box).appendChild(caveat);
+
         panelBody(box).appendChild(table(
             ['Setting', 'Scope', 'Value', 'Firmware default', 'Tab', 'Line'],
             list.map(function (s) {
@@ -1735,6 +1763,9 @@
     /* Render a value the way the file or the firmware states it. */
     function format(value, m, name) {
         if (value === null || value === undefined) { return null; }
+        if (emptyName(m, value)) { return '-'; }
+        var bitWord = bitsetWord(m, value);
+        if (bitWord) { return bitWord; }
         if (Array.isArray(value)) {
             return value.map(function (v) { return scaled(v, name); }).join(',');
         }
