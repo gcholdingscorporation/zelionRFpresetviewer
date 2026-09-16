@@ -1030,18 +1030,67 @@
 
     // ---------------------------------------------------------- beepers tab
 
+    /* The Beepers tab, from src/tabs/beepers.html and src/js/Beepers.js.
+     *
+     * A `beeper` line names a condition the file turns on or off; anything the
+     * file does not mention stays at its firmware default. The Configurator
+     * lists its own conditions in its own order with a description for each,
+     * so that is the list, and the file's state is looked up against it. Its
+     * ESC beacon box offers the same conditions the beacon supports. */
+    var BEACON_CONDITIONS = ['RX_LOST', 'RX_SET'];
+
+    function beeperState(kind, name) {
+        var found = null;
+        rows(kind).forEach(function (b) {
+            if (b.name === name) { found = b.enabled; }
+        });
+        return found;
+    }
+
+    function beeperTable(kind, list, only) {
+        return table(['', 'Condition', ''], list.filter(function (b) {
+            return !only || only.indexOf(b.n) >= 0;
+        }).map(function (b) {
+            return [
+                flagSwitch(beeperState(kind, b.c) === true),
+                { text: b.n, cls: 'name' },
+                { text: b.d, cls: 'dim' }
+            ];
+        }), { empty: 'No ' + kind + ' lines in this file (all at their defaults).' });
+    }
+
     function renderBeepers() {
         var frag = document.createDocumentFragment();
-        var bs = rows('beeper');
-        var box = panel('Beeper Conditions', bs.length + ' changed');
-        panelBody(box).appendChild(table(['Condition', 'State'],
-            bs.map(function (b) {
-                return [{ text: b.name, cls: 'name' },
-                        { text: b.enabled ? 'ON' : 'OFF', cls: b.enabled ? 'on' : 'off' }];
-            }),
-            { empty: 'No beeper lines in this file (all conditions at their defaults).' }));
-        frag.appendChild(box);
-        frag.appendChild(renderSettingsTab('beepers', { quiet: true }));
+        var list = (window.RF_ENUMS || {}).beepers || [];
+
+        if (list.length) {
+            var box = panel('Buzzer Configuration', rows('beeper').length + ' lines in this file');
+            panelBody(box).appendChild(beeperTable('beeper', list));
+            frag.appendChild(box);
+
+            /* The beacon has its own conditions, set by `beacon` lines. */
+            var beacon = panel('ESC Beacon Configuration');
+            var tbody = settingsTable(beacon);
+            var tone = layoutRow({ cli: 'beeper_dshot_beacon_tone', label: 'Dshot Beacon Tone' }, 0);
+            if (tone) { tbody.appendChild(tone); }
+            panelBody(beacon).appendChild(beeperTable('beacon', list, BEACON_CONDITIONS));
+            frag.appendChild(beacon);
+        } else {
+            var bs = rows('beeper');
+            var plain = panel('Beeper Conditions', bs.length + ' changed');
+            panelBody(plain).appendChild(table(['Condition', 'State'],
+                bs.map(function (b) {
+                    return [{ text: b.name, cls: 'name' },
+                            { text: b.enabled ? 'ON' : 'OFF', cls: b.enabled ? 'on' : 'off' }];
+                })));
+            frag.appendChild(plain);
+        }
+
+        frag.appendChild(renderSettingsTab('beepers', {
+            quiet: true,
+            skip: { beeper_dshot_beacon_tone: true },
+            hint: 'not on the Configurator\u2019s Beepers tab'
+        }));
         return frag;
     }
 
