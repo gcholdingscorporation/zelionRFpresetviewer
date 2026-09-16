@@ -333,12 +333,13 @@
                  * a setting, the layout has accounted for it too. */
                 if (spec.from && /^[a-z0-9_]+$/.test(spec.from)) { out[spec.from] = true; }
                 if (spec.ratio) { out[spec.ratio] = true; }
-                if (spec.channelMap) { out.rssi_channel = true; }
+
             });
         }
         layout.boxes.forEach(function (box) {
             walk(box.rows);
             if (box.channelMap) { out.rssi_channel = true; }
+            if (box.telemetrySensors) { out.telemetry_sensors = true; }
         });
         if (layout.matrix) {
             layout.matrix.axes.forEach(function (axis) {
@@ -1857,6 +1858,60 @@
         return table;
     }
 
+    // ------------------------------------------------------ telemetry sensors
+    //
+    // `telemetry_sensors` is a list of sensor ids, in the order they are sent.
+    // The Receiver tab shows them as switches, grouped the way crsf.js groups
+    // them, each group headed with how many of it are on.
+
+    function telemetrySensorsBox() {
+        var groups = (window.RF_ENUMS || {}).telemetrySensors || [];
+        var chosen = masterValue('telemetry_sensors');
+        if (!groups.length || !Array.isArray(chosen)) { return null; }
+
+        var on = {};
+        var order = [];
+        chosen.forEach(function (id) {
+            if (id > 0 && !on[id]) { on[id] = true; order.push(id); }
+        });
+
+        var byId = {};
+        groups.forEach(function (g) {
+            g.s.forEach(function (s) { byId[s.i] = s.l; });
+        });
+
+        var frag = document.createDocumentFragment();
+
+        /* The order matters - it is the order they go out in - so it is
+         * spelled out before the groups. */
+        frag.appendChild(el('div', 'note', 'Sent in this order: '
+            + order.map(function (id) { return byId[id] || ('id ' + id); }).join(', ')
+            + '.'));
+
+        groups.forEach(function (group) {
+            var live = group.s.filter(function (s) { return !!on[s.i]; }).length;
+            var table = el('table', 'settings_table');
+            var tbody = el('tbody');
+            table.appendChild(tbody);
+
+            var head = el('tr', 'subheading');
+            var cell = el('td', 'label');
+            cell.colSpan = 4;
+            cell.textContent = group.t;
+            cell.appendChild(el('span', 'dim', live + ' / ' + group.s.length));
+            head.appendChild(cell);
+            tbody.appendChild(head);
+
+            group.s.forEach(function (sensor) {
+                tbody.appendChild(simpleRow(sensor.l, null, on[sensor.i] ? 'ON' : 'OFF',
+                    'sensor ' + sensor.i,
+                    'On when telemetry_sensors carries id ' + sensor.i + '.'));
+            });
+            frag.appendChild(table);
+        });
+        return frag;
+    }
+
     // ------------------------------------------------------- channel assignment
     //
     // `map AECR1T23` gives one letter per RC channel, saying which control it
@@ -1969,6 +2024,16 @@
                 ? layout.scope.replace('rateprofile', 'rate') + ' ' + index : '');
 
             if (box.when && WHEN[box.when] && !WHEN[box.when]()) { return; }
+
+            if (box.telemetrySensors) {
+                var sensors = telemetrySensorsBox();
+                if (sensors) {
+                    panelBody(gui).appendChild(sensors);
+                    grid.appendChild(gui);
+                    rendered++;
+                }
+                return;
+            }
 
             if (box.channelMap) {
                 var cm = channelMapBox(gui);

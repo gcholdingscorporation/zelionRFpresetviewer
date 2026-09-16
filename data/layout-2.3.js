@@ -69,6 +69,11 @@ window.RF_LAYOUT = {
                 { cli: 'crsf_telemetry_link_ratio', label: 'Telemetry Packet Ratio' }
             ] },
 
+            /* The custom CRSF sensor list, in the order the file selects
+             * them - which is the order they are transmitted in. */
+            { title: 'Custom Telemetry Sensors', telemetrySensors: true,
+              when: 'customTelemetry', rows: [] },
+
             { title: 'Channel Assignment', channelMap: true, rows: [] }
         ]
     },

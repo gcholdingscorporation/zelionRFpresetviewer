@@ -154,6 +154,60 @@ def adjustment_functions(cfg, messages):
     return out
 
 
+def telemetry_sensors(cfg, messages):
+    """The custom CRSF telemetry sensors, grouped as the Receiver tab groups them.
+
+    Three files meet here: telemetry/crsf.js gives the groups and their order,
+    telemetry/sensors.js turns each name into the number `telemetry_sensors`
+    stores, and the locale gives the wording. Entries a newer API adds are
+    included, since the viewer decides by firmware version which apply.
+    """
+    base = os.path.join(cfg, 'src', 'tabs', 'receiver', 'telemetry')
+    crsf = os.path.join(base, 'crsf.js')
+    ids_path = os.path.join(base, 'sensors.js')
+    if not (os.path.exists(crsf) and os.path.exists(ids_path)):
+        return []
+
+    ids = {m.group(1): int(m.group(2)) for m in
+           re.finditer(r'^\s*([A-Z0-9_]+):\s*(\d+),', read(ids_path), re.M)}
+
+    text = read(crsf)
+    start = text.find('getCustomCrsfSensors')
+    if start < 0:
+        return []
+    body = text[start:]
+    end = body.find('\nexport ')
+    if end > 0:
+        body = body[:end]
+
+    # Each group runs from its title to the next one, which keeps the
+    # one-line groups from swallowing the ones after them.
+    marks = [(m.start(), m.group(1))
+             for m in re.finditer(r'title:\s*"([^"]+)"', body)]
+    groups = []
+    for n, (pos, title) in enumerate(marks):
+        chunk = body[pos:marks[n + 1][0] if n + 1 < len(marks) else len(body)]
+        sensors = []
+        for s in re.finditer(r'name:\s*"([^"]+)"', chunk):
+            name = s.group(1)
+            if name not in ids:
+                continue
+            # An ESC group labels its sensors without the ESC number
+            # (SensorsOrderedList/Select.svelte).
+            key = re.sub(r'^ESC\d', 'ESC', name) if title.startswith('ESC') else name
+            sensors.append({
+                'n': name,
+                'i': ids[name],
+                'l': messages.get('receiverTelemetrySensor_' + key, name),
+            })
+        if sensors:
+            groups.append({
+                't': messages.get('receiverTelemetryGroup_' + title, title),
+                's': sensors,
+            })
+    return groups
+
+
 def rx_protocols(cfg):
     """Serial receiver protocols, keyed by the value serialrx_provider stores.
 
@@ -246,6 +300,11 @@ def main():
     beepers = beeper_conditions(cfg, messages)
     print('%d buzzer conditions listed' % len(beepers))
 
+    sensors = telemetry_sensors(cfg, messages)
+    if sensors:
+        print('%d telemetry sensor groups, %d sensors'
+              % (len(sensors), sum(len(g['s']) for g in sensors)))
+
     protocols = rx_protocols(cfg)
     if protocols:
         by_id['rxProtocols'] = protocols
@@ -256,7 +315,8 @@ def main():
                  '// Configurator (GPL-3.0; see NOTICE). Do not edit by hand.\n'
                  '// The wording the Configurator shows for an enumerated value.\n')
         fh.write('window.RF_ENUMS = %s;\n' % json.dumps(
-            {'byId': by_id, 'byName': by_name, 'beepers': beepers},
+            {'byId': by_id, 'byName': by_name, 'beepers': beepers,
+             'telemetrySensors': sensors},
             separators=(',', ':'), sort_keys=True))
     print('wrote %s (%d bytes)' % (out_path, os.path.getsize(out_path)))
 
