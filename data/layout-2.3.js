@@ -26,6 +26,7 @@ window.RF_LAYOUT = {
      * only the assignment itself is here.
      */
     receiver: {
+        style: 'svelte',
         boxes: [
             { title: 'Protocol', rows: [
                 { cli: 'serialrx_provider', label: 'Receiver Protocol', enum: 'rxProtocols' },
@@ -82,6 +83,7 @@ window.RF_LAYOUT = {
      * fallbacks are `rxfail` lines rather than settings, so the box that holds
      * them is built in app.js; only the pulse limits are settings. */
     failsafe: {
+        style: 'svelte',
         boxes: [
             { title: 'Pulse Width Limit', rows: [
                 { cli: 'rx_pulse_min', label: 'Minimum Pulse Width', unit: 'μs' },
@@ -154,6 +156,7 @@ window.RF_LAYOUT = {
      * hidden when it is off, as the Configurator hides them.
      */
     gyro: {
+        style: 'svelte',
         boxes: [
             { title: 'Lowpass Filter', rows: [
                 { sub: 'Lowpass Filter 1' },
@@ -261,6 +264,7 @@ window.RF_LAYOUT = {
      * telemetry, so there is nothing in a file for them and they are not here.
      */
     motors: {
+        style: 'svelte',
         boxes: [
             { title: 'Throttle', rows: [
                 { cli: 'motor_pwm_protocol', label: 'Throttle Protocol' },
@@ -312,6 +316,7 @@ window.RF_LAYOUT = {
      * the signal timeouts, so rows carry `ver`.
      */
     governor: {
+        style: 'svelte',
         boxes: [
             { title: 'General', rows: [
                 { note: 'The Governor has both global and profile parameters. ' +

@@ -125,7 +125,11 @@
 
     /* Name-based overrides, applied before PG_TAB. First match wins. */
     var NAME_TAB = [
-        [/^gov_/, 'governor'],
+        /* The Configurator splits the governor in two: the master settings are
+         * its Governor tab and the per-profile gains sit in a Governor Settings
+         * box on the Profiles tab, which its own note on the Governor page
+         * points at. A per-profile gov_ setting therefore belongs to Profiles. */
+        [/^gov_/, function (m) { return m && m.s === 'profile' ? 'profiles' : 'governor'; }],
         [/^rescue_/, 'rescue'],
         [/^gps_rescue_/, 'gps'],
         [/^(acro_trainer_|angle_level|horizon_)/, 'profiles'],
@@ -498,7 +502,10 @@
 
     function tabFor(name, meta) {
         for (var i = 0; i < NAME_TAB.length; i++) {
-            if (NAME_TAB[i][0].test(name)) { return NAME_TAB[i][1]; }
+            if (NAME_TAB[i][0].test(name)) {
+                var to = NAME_TAB[i][1];
+                return typeof to === 'function' ? to(meta) : to;
+            }
         }
         if (meta && meta.pg && PG_TAB[meta.pg]) { return PG_TAB[meta.pg]; }
         return 'all';

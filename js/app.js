@@ -18,8 +18,12 @@
         tab: 'setup',
         profile: 0,
         rateProfile: 0,
+        /* 'legacy' (control left, label right) or 'svelte' (label left,
+         * control right) - see rowOrder(). */
+        rowStyle: 'legacy',
         filter: '',
         onlyChanged: false,
+        showCli: false,
         fileName: ''
     };
 
@@ -212,14 +216,12 @@
 
         var control = el('td', 'control');
         control.appendChild(controlFor(name, m, shown));
-        row.appendChild(control);
 
         var lab = el('td', 'label');
         lab.appendChild(document.createTextNode(label));
         var unit = known ? S.unitFor(name) : '';
         if (unit) { lab.appendChild(el('span', 'units', '[' + unit + ']')); }
         lab.appendChild(el('span', 'cli-name', name));
-        row.appendChild(lab);
 
         var was = el('td', 'was');
         if (!known) {
@@ -229,13 +231,12 @@
         } else if (changed) {
             was.textContent = 'was ' + def;
         }
-        row.appendChild(was);
 
         var help = el('td', 'help');
         var icon = el('div', 'helpicon', '?');
         icon.title = rowTooltip(name, m, present);
         help.appendChild(icon);
-        row.appendChild(help);
+        rowOrder(row, control, lab, was, help);
 
         return row;
     }
@@ -356,6 +357,7 @@
             walk(box.rows);
             if (box.channelMap) { out.rssi_channel = true; }
             if (box.telemetrySensors) { out.telemetry_sensors = true; }
+            if (box.curve) { out[box.curve] = true; }
         });
         if (layout.matrix) {
             layout.matrix.axes.forEach(function (axis) {
@@ -1009,7 +1011,7 @@
         if (laid) { frag.appendChild(laid); }
 
         var inputs = rows('mixerInput');
-        var ib = panel('Mixer Inputs', inputs.length + ' overridden');
+        var ib = panel('Mixer Inputs', 'not on the Configurator\u2019s page');
         panelBody(ib).appendChild(table(
             ['Input', 'Min', 'Max', 'Rate'],
             inputs.map(function (i) {
@@ -1020,7 +1022,7 @@
 
         var rules = rows('mixerRule');
         if (rules.length) {
-            var rb = panel('Mixer Rules', rules.length + ' active');
+            var rb = panel('Mixer Rules', 'not on the Configurator\u2019s page');
             panelBody(rb).appendChild(table(
                 ['#', 'Operation', 'Input', 'Output', 'Weight', 'Offset'],
                 rules.map(function (r) {
@@ -1032,7 +1034,7 @@
 
         var over = rows('mixerOverride');
         if (over.length) {
-            var ob = panel('Mixer Overrides');
+            var ob = panel('Mixer Overrides', 'not on the Configurator\u2019s page');
             panelBody(ob).appendChild(table(['Input', 'Value'],
                 over.map(function (o) { return [{ text: o.input, cls: 'name' }, o.value]; })));
             frag.appendChild(ob);
@@ -1638,19 +1640,15 @@
         var row = el('tr', 'is-derived');
         var control = el('td', 'control');
         control.appendChild(controlFor(provenance, null, shown));
-        row.appendChild(control);
         var lab = el('td', 'label');
         lab.appendChild(document.createTextNode(label));
         if (unit) { lab.appendChild(el('span', 'units', '[' + unit + ']')); }
         lab.appendChild(el('span', 'cli-name', provenance));
-        row.appendChild(lab);
-        row.appendChild(el('td', 'was'));
         var help = el('td', 'help');
         var icon = el('div', 'helpicon', '?');
         icon.title = why;
         help.appendChild(icon);
-        row.appendChild(help);
-        return row;
+        return rowOrder(row, control, lab, el('td', 'was'), help);
     }
 
     /* A row the Configurator computes rather than stores. It carries no "was",
@@ -1668,23 +1666,18 @@
         var row = el('tr', 'is-derived');
         var control = el('td', 'control');
         control.appendChild(controlFor(spec.calc, null, shown));
-        row.appendChild(control);
 
         var lab = el('td', 'label');
         lab.appendChild(document.createTextNode(spec.label));
         if (spec.unit) { lab.appendChild(el('span', 'units', '[' + spec.unit + ']')); }
         if (spec.from) { lab.appendChild(el('span', 'cli-name', spec.from)); }
-        row.appendChild(lab);
-
-        row.appendChild(el('td', 'was'));
 
         var help = el('td', 'help');
         var icon = el('div', 'helpicon', '?');
         icon.title = 'The Configurator computes this from ' + (spec.from || 'the mixer setup')
             + '. It is not a stored setting, so it has no firmware default.';
         help.appendChild(icon);
-        row.appendChild(help);
-        return row;
+        return rowOrder(row, control, lab, el('td', 'was'), help);
     }
 
     function layoutRow(spec, index) {
@@ -1735,7 +1728,6 @@
 
         var control = el('td', 'control');
         control.appendChild(controlFor(spec.cli, m, shown));
-        row.appendChild(control);
 
         var lab = el('td', 'label');
         lab.appendChild(document.createTextNode(spec.label));
@@ -1746,18 +1738,15 @@
         }
         var cli = spec.cli + (spec.idx === undefined ? '' : '[' + spec.idx + ']');
         lab.appendChild(el('span', 'cli-name', cli));
-        row.appendChild(lab);
 
         var was = el('td', 'was');
         if (changed) { was.textContent = 'was ' + def; }
-        row.appendChild(was);
 
         var help = el('td', 'help');
         var icon = el('div', 'helpicon', '?');
         icon.title = rowTooltip(spec.cli, m, present);
         help.appendChild(icon);
-        row.appendChild(help);
-        return row;
+        return rowOrder(row, control, lab, was, help);
     }
 
     /* Render a value the way the file or the firmware states it. */
@@ -1817,6 +1806,46 @@
         return rows.length;
     }
 
+    /* The Configurator draws this curve as a red line on a grid, which says
+     * more at a glance than the list of percentages beside it. */
+    function curveGraph(points) {
+        var W = 300, H = 150, pad = 6;
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+        svg.setAttribute('class', 'curve-graph');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', 'Governor bypass throttle curve');
+
+        function add(tag, attrs) {
+            var node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+            Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+            svg.appendChild(node);
+            return node;
+        }
+
+        for (var g = 0; g <= 4; g++) {
+            var gx = pad + (W - 2 * pad) * g / 4;
+            var gy = pad + (H - 2 * pad) * g / 4;
+            add('line', { x1: gx, y1: pad, x2: gx, y2: H - pad, class: 'curve-grid' });
+            add('line', { x1: pad, y1: gy, x2: W - pad, y2: gy, class: 'curve-grid' });
+        }
+
+        var xs = [], ys = [];
+        points.forEach(function (v, i) {
+            xs.push(pad + (W - 2 * pad) * i / Math.max(1, points.length - 1));
+            ys.push(H - pad - (H - 2 * pad) * Math.min(1, (v / 2) / 100));
+        });
+
+        add('polyline', {
+            points: xs.map(function (x, i) { return x + ',' + ys[i]; }).join(' '),
+            class: 'curve-line'
+        });
+        xs.forEach(function (x, i) {
+            add('circle', { cx: x, cy: ys[i], r: 3, class: 'curve-dot' });
+        });
+        return svg;
+    }
+
     /* The governor bypass curve. The firmware stores nine points at twice
      * their percentage; ThrottleCurve.svelte shows five when every odd point
      * is the rounded average of its neighbours, which is how the Configurator
@@ -1833,6 +1862,7 @@
         if (reducible) { points = [raw[0], raw[2], raw[4], raw[6], raw[8]]; }
 
         var wrap = el('div', 'curve-box');
+        wrap.appendChild(curveGraph(points));
         wrap.appendChild(el('div', 'curve-points', 'Points ' + points.length));
         var list = el('ol', 'curve-list');
         points.forEach(function (v) {
@@ -2330,15 +2360,29 @@
 
     function renderSidebar() {
         var bar = clear($('#sidebar'));
-        bar.appendChild(el('div', 'rail-title', 'Tabs'));
+        var icons = window.RF_ICONS || {};
         S.TABS.forEach(function (t) {
             var count = tabContentCount(t.id);
             var link = el('div', 'tab-link' +
                 (t.id === state.tab ? ' active' : '') +
                 (count === 0 ? ' empty' : ''));
             link.setAttribute('data-tab', t.id);
-            link.appendChild(el('span', null, t.name));
-            if (count !== null) { link.appendChild(el('span', 'count', count)); }
+
+            /* The Configurator's own icon, masked so it takes the tab's
+             * colour rather than needing a second file for the selected one. */
+            var icon = el('span', 'tabicon');
+            if (icons[t.id]) {
+                icon.style.webkitMaskImage = 'url("' + icons[t.id] + '")';
+                icon.style.maskImage = 'url("' + icons[t.id] + '")';
+            }
+            link.appendChild(icon);
+
+            link.appendChild(el('span', 'tabname', t.name));
+            if (count !== null) {
+                var badge = el('span', 'count', count);
+                badge.title = count + ' value' + (count === 1 ? '' : 's') + ' from this file';
+                link.appendChild(badge);
+            }
             link.onclick = function () { state.tab = t.id; closeDrawer(); render(); };
             bar.appendChild(link);
         });
@@ -2359,10 +2403,28 @@
         first.appendChild(el('span', 'chip kind-' + p.kind, p.kind));
         first.appendChild(document.createTextNode(' ' + (state.fileName || 'pasted text')));
         meta$.appendChild(first);
-        meta$.appendChild(line('Firmware', (p.header.version || 'unknown') +
-            (p.header.firmware ? ' ' + p.header.firmware : '')));
-        meta$.appendChild(line('Target', (p.header.board_name || '?') +
-            (p.header.mcuTarget ? '(' + p.header.mcuTarget + ')' : '')));
+
+        var firmware = (p.header.version || 'unknown')
+            + (p.header.firmware ? ' ' + p.header.firmware : '');
+        var target = (p.header.board_name || '?')
+            + (p.header.mcuTarget ? '(' + p.header.mcuTarget + ')' : '');
+        meta$.appendChild(line('Firmware', firmware));
+        meta$.appendChild(line('Target', target));
+
+        var footer = clear($('#footertext'));
+        if (footer) {
+            [['Craft', p.header.craftName || '\u2014'],
+             ['Settings', String(p.setCount)],
+             ['Profiles', Object.keys(p.profiles).length + ' PID, '
+                 + Object.keys(p.rateProfiles).length + ' rate'],
+             ['Firmware', firmware],
+             ['Target', target]].forEach(function (pair) {
+                var item = el('span');
+                item.appendChild(document.createTextNode(pair[0] + ': '));
+                item.appendChild(el('b', null, pair[1]));
+                footer.appendChild(item);
+            });
+        }
 
         var status = $('#statustext');
         if (status) {
@@ -2400,9 +2462,48 @@
             lab.appendChild(cb);
             lab.appendChild(document.createTextNode('Only values set in this file'));
             bar.appendChild(lab);
+
+            /* Off by default: the Configurator shows a label and nothing else,
+             * and a second line under every label is the loudest way this page
+             * stops looking like it. */
+            var nameLab = el('label');
+            var nameCb = el('input');
+            nameCb.type = 'checkbox';
+            nameCb.checked = state.showCli;
+            nameCb.onchange = function () {
+                state.showCli = nameCb.checked;
+                applyCliNames();
+            };
+            nameLab.appendChild(nameCb);
+            nameLab.appendChild(document.createTextNode('CLI names'));
+            bar.appendChild(nameLab);
         }
 
         host.appendChild(bar);
+    }
+
+    /* The Configurator is written in two visual languages and the difference is
+     * plain on screen: its older tabs put the control on the left and the label
+     * to its right, and the Svelte ones it has been rewriting into put the
+     * label on the left with the control against the right edge. A layout says
+     * which it is, and the rows are assembled that way round. */
+    function rowOrder(row, control, label, was, help) {
+        if (state.rowStyle === 'svelte') {
+            row.appendChild(label);
+            row.appendChild(was);
+            row.appendChild(control);
+            row.appendChild(help);
+        } else {
+            row.appendChild(control);
+            row.appendChild(label);
+            row.appendChild(was);
+            row.appendChild(help);
+        }
+        return row;
+    }
+
+    function applyCliNames() {
+        document.body.classList.toggle('show-cli', !!state.showCli);
     }
 
     function currentTabDef() {
@@ -2413,13 +2514,20 @@
         var host = clear($('#content'));
         var def = currentTabDef();
 
+        /* Which of the Configurator's two layouts this page uses. */
+        var layout = (window.RF_LAYOUT || {})[def.id];
+        state.rowStyle = (layout && layout.style) || 'legacy';
+        host.className = 'style-' + state.rowStyle;
+
         var title = el('div', 'tab_title');
         title.appendChild(document.createTextNode(def.name));
-        var sub = el('span', 'sub');
-        sub.textContent = state.parsed.kind === 'diff'
-            ? 'values absent from a diff are shown at their firmware default'
-            : 'values shown exactly as printed by the CLI';
-        title.appendChild(sub);
+        /* A `diff` leaves most settings out, and the page fills them in from
+         * the firmware, which is worth saying once per page rather than never. */
+        if (state.parsed.kind === 'diff') {
+            title.appendChild(el('span', 'sub',
+                'a diff carries only what changed; the rest are shown at their '
+                + 'firmware default'));
+        }
         host.appendChild(title);
 
         renderToolbar(host);
@@ -2438,6 +2546,7 @@
             : renderLayoutTab(def.id)
             || renderSettingsTab(def.id, { scope: SCOPED[def.id] || 'master' });
         host.appendChild(body);
+        applyCliNames();
     }
 
     function render() {

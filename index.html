@@ -9,13 +9,27 @@
 </head>
 <body>
 
+<!--
+  The Configurator's own header: a light band with the wordmark on the left and
+  three lines of small grey text under it saying which build, which firmware
+  and which target, then the buttons on the right. The wordmark says PRESET
+  VIEWER because that is what this is; it reads Rotorflight files, it is not
+  the Configurator.
+-->
 <div id="header">
     <button class="btn" id="menu-btn" type="button" aria-label="Show tabs" aria-expanded="false">&#9776;</button>
-    <div class="brand"><span class="full">ROTORFLIGHT </span><span class="short">RF </span><span>PRESET VIEWER</span></div>
-    <div class="filemeta" id="filemeta"></div>
-    <button class="btn" id="new-btn" type="button">Load another</button>
-    <button class="btn primary" id="open-btn" type="button">Open file…</button>
-    <button class="btn" id="theme-btn" type="button">Dark</button>
+    <div class="logo-block">
+        <div class="brand">
+            <span class="rotor">ROTOR</span><span class="flight">FLIGHT</span>
+            <span class="viewer">PRESET VIEWER</span>
+        </div>
+        <div class="filemeta" id="filemeta"></div>
+    </div>
+    <div class="header-actions">
+        <button class="btn" id="new-btn" type="button">Load another</button>
+        <button class="btn primary" id="open-btn" type="button">Open file…</button>
+        <button class="btn" id="theme-btn" type="button">Dark</button>
+    </div>
     <input type="file" id="file-input" accept=".txt,.cli,.preset,.conf,.config,text/plain" hidden>
 </div>
 
@@ -70,12 +84,16 @@
     <div id="content"></div>
 </div>
 
+<!-- The Configurator's own footer strip, with what a file can fill in. -->
+<div id="footer"><span id="footertext"></span></div>
+
 <div id="drop">Drop a Rotorflight CLI file to view it</div>
 
 <script src="data/labels-2.3.js"></script>
 <script src="data/layout-2.3.js"></script>
 <script src="data/scales-2.3.js"></script>
 <script src="data/enums-2.3.js"></script>
+<script src="data/icons-2.3.js"></script>
 <script src="data/rf-4.5.js"></script>
 <script src="data/rf-4.6.js"></script>
 <script src="js/parser.js"></script>

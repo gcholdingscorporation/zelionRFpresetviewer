@@ -34,6 +34,7 @@
     --alternativeBackground: #f9f9f9;
     --sideBackground: #ffffff;
     --railBackground: #2e2e2e;
+    --headerBackground: #ffffff;
     --pidHeader: hsl(160, 2%, 76%);
     --pidHeaderText: #000000;
 
@@ -58,6 +59,7 @@ html[data-theme="dark"] {
     --linkText: #4da8da;
     --attention: #c04020;
     --boxBackground: #3a3a3a;
+    --headerBackground: #2a2a2a;
     --alternativeBackground: #414443;
     --sideBackground: #404040;
     --railBackground: #252525;
@@ -96,16 +98,17 @@ input[type="text"], input[type="number"], input[type="search"], select {
     padding: 0 4px;
 }
 
+/* The Configurator's number inputs are about 110px wide with a spinner on the
+ * right. A read-only value has nothing to spin, but the width is most of what
+ * makes a row read the way its rows read, so the width is kept. */
 input.value {
     text-align: right;
-    width: 72px;
-    /* The Configurator's number inputs keep their spinner; a read-only value
-       has nothing to spin, so the space goes back to the number. */
-    padding-right: 5px;
+    width: 108px;
+    padding-right: 6px;
 }
 
-input.value.wide { width: 150px; }
-select.value { height: 20px; min-width: 96px; }
+input.value.wide { width: 210px; }
+select.value { height: 22px; min-width: 108px; }
 
 input:disabled, select:disabled {
     opacity: 1;
@@ -132,40 +135,52 @@ input:disabled, select:disabled {
 /* ----------------------------------------------------------------- header */
 
 #header {
-    height: 52px;
-    background-color: var(--railBackground);
-    color: #d8d8d8;
+    height: 96px;
+    background-color: var(--headerBackground);
+    color: var(--defaultText);
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 0 14px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--superSubtleAccent);
 }
+
+#header .logo-block { flex: 1; min-width: 0; }
 
 #header .brand {
+    font-size: 26px;
+    font-style: italic;
     font-weight: 800;
-    font-size: 17px;
-    letter-spacing: .02em;
-    color: #ffffff;
+    letter-spacing: -.01em;
     white-space: nowrap;
+    line-height: 30px;
 }
 
-#header .brand span { color: var(--accent); }
-#header .brand .short { display: none; }
+#header .brand .rotor { color: var(--accent); }
+#header .brand .flight { color: var(--linkText); }
+
+#header .brand .viewer {
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--quietHeader);
+    margin-left: 8px;
+    vertical-align: 4px;
+}
 
 #header .filemeta {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
     min-width: 0;
     overflow: hidden;
-    font-size: 10px;
-    line-height: 13px;
-    color: #9a9a9a;
+    font-size: 11px;
+    line-height: 15px;
+    color: var(--subtleText);
     white-space: nowrap;
+    margin-top: 2px;
 }
 
-#header .filemeta b { color: #d8d8d8; font-weight: 600; }
+#header .filemeta b { color: var(--defaultText); font-weight: 600; }
+#header .header-actions { display: flex; gap: 8px; align-items: center; }
 
 .chip {
     display: inline-block;
@@ -201,9 +216,30 @@ input:disabled, select:disabled {
     padding: 0 14px;
 }
 
+/* The Configurator's footer strip. Most of what it shows is live; what a file
+ * can answer for goes here instead. */
+#footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 22px;
+    background-color: var(--railBackground);
+    color: #b4b4b4;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 14px;
+    z-index: 5;
+}
+
+#footer #footertext { display: flex; gap: 18px; align-items: center; }
+#footer b { color: #e2e2e2; font-weight: 600; }
+
 /* ------------------------------------------------------------------- body */
 
-#layout { display: flex; height: calc(100% - 74px); }
+#layout { display: flex; height: calc(100% - 140px); }
 
 /* .tab_container */
 #sidebar {
@@ -214,15 +250,6 @@ input:disabled, select:disabled {
     overflow-y: auto;
 }
 
-#sidebar .rail-title {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    color: #6f6f6f;
-    padding: 8px 0 4px 14px;
-    font-weight: 700;
-}
-
 .tab-link {
     display: flex;
     align-items: center;
@@ -230,7 +257,7 @@ input:disabled, select:disabled {
     gap: 8px;
     height: 30px;
     line-height: 30px;
-    padding: 0 12px 0 33px;
+    padding: 0 10px 0 33px;
     cursor: pointer;
     color: #999999;
     font-size: 13px;
@@ -242,26 +269,41 @@ input:disabled, select:disabled {
     position: relative;
 }
 
-/* The Configurator puts a 15px icon at 13px from the left of every tab. */
-.tab-link::before {
-    content: '';
+/* The Configurator puts a 15px icon at 13px from the left of every tab
+ * (main.css .tabicon), grey normally and white on the selected one. Its icons
+ * are single-colour, so one file masked over the tab's own colour does both. */
+.tab-link .tabicon {
     position: absolute;
-    left: 11px;
+    left: 13px;
     top: 50%;
-    width: 13px;
-    height: 13px;
-    margin-top: -6px;
-    border: 1.5px solid currentColor;
-    border-radius: 3px;
-    opacity: .55;
+    width: 15px;
+    height: 15px;
+    margin-top: -7px;
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
 }
+
+.tab-link .tabname { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 
 .tab-link:hover { background-color: rgba(128, 128, 128, 0.50); color: #fff; }
 .tab-link.active { background-color: var(--accent); color: #000; font-weight: 600; }
 .tab-link.active:hover { background-color: var(--accent); cursor: default; }
 .tab-link.empty { opacity: .45; }
 
-.tab-link .count { font-size: 10px; font-family: var(--font-mono); opacity: .75; font-weight: 400; }
+/* The Configurator has nothing here; the count is the viewer's, so it is kept
+ * quiet enough to read as part of the rail rather than as a second column. */
+.tab-link .count {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    opacity: .35;
+    font-weight: 400;
+}
+.tab-link.active .count { opacity: .55; }
 
 /* .content_wrapper */
 #content {
@@ -273,12 +315,12 @@ input:disabled, select:disabled {
 }
 
 .tab_title {
-    font-size: 16px;
-    line-height: 18px;
+    font-size: 20px;
+    line-height: 24px;
     font-weight: 300;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--superSubtleAccent);
+    margin-bottom: 15px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--accent);
     display: flex;
     align-items: baseline;
     gap: 12px;
@@ -289,15 +331,21 @@ input:disabled, select:disabled {
 
 /* --------------------------------------------------------------- gui_box */
 
+/* A grid leaves a hole under a short box, because its row is as tall as the
+ * tallest box beside it. The Configurator's boxes pack down their column
+ * instead, so this is a multi-column flow rather than a grid. */
 .columns {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 10px;
-    align-items: start;
+    column-count: 2;
+    column-gap: 10px;
+}
+
+.columns > .gui_box {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
 }
 
 @media only screen and (max-width: 1100px) {
-    .columns { grid-template-columns: minmax(0, 1fr); }
+    .columns { column-count: 1; }
 }
 
 .gui_box {
@@ -333,8 +381,9 @@ table.settings_table {
 }
 
 table.settings_table td {
-    padding: 2px 4px;
+    padding: 3px 4px;
     vertical-align: middle;
+    height: 24px;
 }
 
 /* The control cell, on the left, sized to the widest control. */
@@ -344,15 +393,34 @@ table.settings_table td.control {
     text-align: left;
 }
 
-/* The label cell, on the right. */
+/* The label cell. */
 table.settings_table td.label {
     color: var(--linkText);
     padding-left: 8px;
 }
 
+/* On the tabs the Configurator has rewritten in Svelte the label comes first
+ * and takes the width, with the control against the right edge of the box. */
+#content.style-svelte table.settings_table td.label {
+    width: auto;
+    padding-left: 2px;
+}
+
+#content.style-svelte table.settings_table td.control {
+    text-align: right;
+    padding-right: 2px;
+}
+
+#content.style-svelte table.settings_table tr.subheading td.label { padding-left: 2px; }
+
 table.settings_table tr:hover td.label { color: var(--darkAccent); }
 
 table.settings_table td.label .units { color: var(--mutedText); margin-left: 4px; }
+
+/* The Configurator shows a label and nothing else. The CLI name is the
+ * viewer's own, and useful, so it is kept behind a toggle rather than shown by
+ * default where it would double the height of every row. */
+body:not(.show-cli) table.settings_table td.label .cli-name { display: none; }
 
 table.settings_table td.label .cli-name {
     display: block;
@@ -363,7 +431,8 @@ table.settings_table td.label .cli-name {
     overflow-wrap: anywhere;
 }
 
-/* The Configurator's help icon: a faint circle at the right of the row. */
+/* The Configurator's help icon is its info glyph at 14px and 20% opacity,
+ * darkening on hover (main.css .helpicon). */
 table.settings_table td.help { width: 18px; }
 
 .helpicon {
@@ -698,3 +767,16 @@ span.swatch {
     border: 1px solid var(--quietHeader);
     vertical-align: middle;
 }
+
+/* The governor bypass curve, drawn the way the Configurator draws it. */
+.curve-graph {
+    width: 100%;
+    max-width: 330px;
+    height: auto;
+    background: var(--boxBackground);
+    border: 1px solid var(--superSubtleAccent);
+    margin-bottom: 8px;
+}
+.curve-grid { stroke: var(--superSubtleAccent); stroke-width: .5; }
+.curve-line { fill: none; stroke: #e03030; stroke-width: 2; }
+.curve-dot  { fill: #e03030; }
