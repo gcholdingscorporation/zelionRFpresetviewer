@@ -6,7 +6,7 @@ change one. It reads a file and tells you what is in it.
 
 ## Install
 
-Needs Python 3 with Tk (the python.org Windows installer includes it).
+Needs Python 3 with Tk. The python.org Windows installer includes it.
 
 Install the two libraries **one command at a time** — `orangebox` emits a
 harmless packaging error that aborts anything queued behind it in the same

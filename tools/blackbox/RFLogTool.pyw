@@ -1,21 +1,118 @@
 # Rotorflight Blackbox Analyser - double-click to run.
-import os, re, sys, math, threading, traceback
+import os, re, sys, math, threading, traceback, subprocess, importlib
 import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
+from tkinter import filedialog, ttk, messagebox, scrolledtext
 
-def _need(mod, pipname=None):
+REQUIRED = [("numpy", "numpy"), ("orangebox", "orangebox")]
+
+
+def _missing():
+    out = []
+    for mod, pkg in REQUIRED:
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            out.append(pkg)
+    return out
+
+
+def _pip(pkg, log, user=False):
+    cmd = [sys.executable, "-m", "pip", "install"] + (["--user"] if user else []) + [pkg]
+    log("\n>>> " + " ".join(cmd) + "\n")
     try:
-        return __import__(mod)
-    except ImportError:
-        r = tk.Tk(); r.withdraw()
-        messagebox.showerror("Missing library",
-            f"Need '{pipname or mod}'.\n\nRun this once in a terminal:\n\n"
-            f"    python -m pip install {pipname or mod}\n\n"
-            "Install ONE package per command.")
-        sys.exit(1)
+        p = subprocess.run(cmd, capture_output=True, text=True,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception as e:
+        log("could not run pip: %s\n" % e)
+        return False
+    if p.stdout:
+        log(p.stdout)
+    if p.stderr:
+        log(p.stderr)
+    return True
 
-np = _need("numpy")
-_ob = _need("orangebox")
+
+def _install(pkgs, log):
+    """One package per pip call. orangebox emits a packaging error that aborts
+    anything queued behind it in the same command - that is how numpy went
+    missing in the first place."""
+    ok = True
+    for pkg in pkgs:
+        _pip(pkg, log)
+        importlib.invalidate_caches()
+        try:
+            importlib.import_module(pkg)
+            log("%s: OK\n" % pkg)
+            continue
+        except ImportError:
+            pass
+        log("%s still missing - retrying into your user folder\n" % pkg)
+        _pip(pkg, log, user=True)
+        importlib.invalidate_caches()
+        try:
+            importlib.import_module(pkg)
+            log("%s: OK\n" % pkg)
+        except ImportError:
+            log("%s: STILL MISSING\n" % pkg)
+            ok = False
+    return ok
+
+
+def _setup_gate():
+    miss = _missing()
+    if not miss:
+        return
+    root = tk.Tk()
+    root.title("Rotorflight Blackbox Analyser - setup")
+    root.geometry("780x460")
+    ttk.Label(root, wraplength=740, justify="left", padding=10, text=(
+        "Missing: " + ", ".join(miss) + "\n\n"
+        "Python being used by this launcher:\n" + sys.executable + "\n\n"
+        "If you already installed these, they went into a different Python "
+        "installation than the one above. Installing them here puts them in the "
+        "right place.")).pack(fill="x")
+    box = scrolledtext.ScrolledText(root, height=15, font=("Consolas", 9))
+    box.pack(fill="both", expand=True, padx=10)
+    bar = ttk.Frame(root, padding=8)
+    bar.pack(fill="x")
+    st = {"restart": False}
+
+    def log(s):
+        box.insert("end", s)
+        box.see("end")
+        root.update_idletasks()
+
+    def go():
+        btn.config(state="disabled")
+        qb.config(state="disabled")
+        if _install(miss, log):
+            log("\nAll set. Restarting the app...\n")
+            st["restart"] = True
+            root.after(1200, root.destroy)
+        else:
+            log("\nStill not right. Copy this text and send it to Claude.\n")
+            qb.config(state="normal")
+
+    btn = ttk.Button(bar, text="Install them now", command=go)
+    btn.pack(side="left")
+    qb = ttk.Button(bar, text="Quit", command=root.destroy)
+    qb.pack(side="left", padx=6)
+    ttk.Button(bar, text="Copy this log",
+               command=lambda: (root.clipboard_clear(),
+                                root.clipboard_append(box.get("1.0", "end")))
+               ).pack(side="left")
+    root.mainloop()
+    if st["restart"]:
+        try:
+            subprocess.Popen([sys.executable] + sys.argv)
+        except Exception:
+            pass
+    sys.exit(0)
+
+
+_setup_gate()
+
+import numpy as np
 from orangebox import Parser
 
 AXES = (("ROLL", 0), ("PITCH", 1), ("YAW", 2))
