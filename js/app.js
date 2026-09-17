@@ -528,76 +528,19 @@
 
     // ------------------------------------------------------------ setup tab
 
+    /* The Configurator's Setup page is six buttons - calibrate, reset, save,
+     * boot loader, mass storage, reboot - and a line of advice beside each.
+     * Every one of them talks to a flight controller, so a viewer has none of
+     * them, and inventing boxes of its own here is exactly what this page
+     * should not do. What a file says about itself is in the header and the
+     * footer strip; the file itself is on the CLI tab. */
     function renderSetup() {
-        var p = state.parsed;
         var frag = document.createDocumentFragment();
-        var grid = el('div', 'columns');
-
-        var fw = panel('Firmware');
-        var fwb = settingsTable(fw);
-        [['File', state.fileName || '(pasted text)'],
-         ['Content', p.kind === 'diff' ? 'diff all (only non-default values)'
-                    : p.kind === 'dump' ? 'dump all (complete configuration)'
-                    : 'preset / partial CLI snippet'],
-         ['Firmware', p.header.firmware || '—'],
-         ['Version', p.header.version || '—'],
-         ['Build date', p.header.buildDate || '—'],
-         ['Git hash', p.header.gitHash || '—'],
-         ['MSP API', p.header.mspApi || '—'],
-         ['Metadata used', state.dbKey ? 'Rotorflight ' + state.dbKey : 'none']
-        ].forEach(function (kv) { fwb.appendChild(infoRow(kv[0], kv[1])); });
-        grid.appendChild(fw);
-
-        var bd = panel('Board');
-        var bdb = settingsTable(bd);
-        [['Craft name', p.header.craftName || (p.master.name && p.master.name.raw) || '—'],
-         ['Target', p.header.mcuTarget || '—'],
-         ['Board name', p.header.board_name || '—'],
-         ['Board design', p.header.board_design || '—'],
-         ['Manufacturer', p.header.manufacturer_id || '—'],
-         ['MCU ID', p.header.mcu_id || '—'],
-         ['Signature', p.header.signature || '(none)']
-        ].forEach(function (kv) { bdb.appendChild(infoRow(kv[0], kv[1])); });
-        grid.appendChild(bd);
-
-        var ft = panel('Features', p.features.length + ' changed');
-        var ftb = settingsTable(ft);
-        if (!p.features.length) {
-            ftb.appendChild(el('div', 'empty-note', 'No feature changes in this file.'));
-        } else {
-            p.features.forEach(function (f) {
-                var row = el('tr');
-                var control = el('td', 'control');
-                var sw = el('div', 'switch' + (f.enabled ? ' on' : ''));
-                sw.title = f.enabled ? 'enabled' : 'disabled';
-                control.appendChild(sw);
-                row.appendChild(control);
-                row.appendChild(el('td', 'label', f.name));
-                ftb.appendChild(row);
-            });
-        }
-        grid.appendChild(ft);
-
-        var st = panel('Contents');
-        var stb = settingsTable(st);
-        var profileCount = Object.keys(p.profiles).length;
-        var rateCount = Object.keys(p.rateProfiles).length;
-        [['set statements', p.setCount],
-         ['Master values', Object.keys(p.master).length],
-         ['PID profiles present', profileCount],
-         ['Rate profiles present', rateCount],
-         ['Selected PID profile', p.activeProfile === null ? '—' : p.activeProfile],
-         ['Selected rate profile', p.activeRateProfile === null ? '—' : p.activeRateProfile],
-         ['Servos', rows('servo').length],
-         ['Mixer inputs', rows('mixerInput').length],
-         ['Mixer rules', rows('mixerRule').length],
-         ['Mode (aux) slots used', rows('aux').filter(auxInUse).length],
-         ['Adjustments used', rows('adjfunc').filter(function (a) { return a.func; }).length],
-         ['Unrecognised lines', p.unknown.length]
-        ].forEach(function (kv) { stb.appendChild(infoRow(kv[0], kv[1])); });
-        grid.appendChild(st);
-
-        frag.appendChild(grid);
+        frag.appendChild(el('div', 'note',
+            'The Configurator\u2019s Setup page is a set of actions on a connected '
+            + 'flight controller \u2014 calibrate, reset, save, reboot \u2014 and none of '
+            + 'them apply to a file. This file\u2019s own details are in the bar above '
+            + 'and the strip below; the text of it is on the CLI tab.'));
         return frag;
     }
 
@@ -741,13 +684,16 @@
         var named = ((window.RF_ENUMS || {}).byId || {}).adjustmentFunctions || {};
         var box = panel('Adjustments',
             used.length + ' of ' + rows('adjfunc').length + ' slots in use');
+        /* The Configurator's own columns. It has no slot number and no step
+         * column: a step only exists in Stepped mode, where it reads as part
+         * of the mode. */
         panelBody(box).appendChild(table(
-            ['Slot', 'Mode', 'Function', 'Enable Channel', 'Enable range',
-             'Value Channel', 'Value range', 'Value Ranges', 'Step'],
+            ['Mode', 'Function', 'Enable Channel', 'Enable range',
+             'Value Channel', 'Value range', 'Value Ranges'],
             used.map(function (a) {
-                var mode = !a.func ? 'Off' : (a.step > 0 ? 'Stepped' : 'Mapped');
+                var mode = !a.func ? 'Off'
+                    : (a.step > 0 ? 'Stepped by ' + a.step : 'Mapped');
                 return [
-                    { text: a.slot, cls: 'name' },
                     { text: mode, cls: 'name' },
                     { text: named[String(a.func)] || funcs[a.func] || ('id ' + a.func),
                       cls: 'name' },
@@ -755,8 +701,7 @@
                     a.enaStart + ' \u2013 ' + a.enaEnd,
                     a.adjChannel === 255 ? 'AUTO' : channelName(a.adjChannel),
                     a.adj1Start + ' \u2013 ' + a.adj1End,
-                    a.min + ' \u2013 ' + a.max,
-                    a.step
+                    a.min + ' \u2013 ' + a.max
                 ];
             }),
             { empty: 'No adjustment functions are configured in this file.' }));
@@ -1074,14 +1019,6 @@
                             swatch || '', { text: c.spec, cls: 'name' }];
                 })));
             frag.appendChild(cb);
-        }
-
-        var mc = rows('mode_color');
-        if (mc.length) {
-            var mb = panel('Mode Colors');
-            panelBody(mb).appendChild(table(['Mode', 'Function', 'Color'],
-                mc.map(function (m) { return [m.mode, m.func, m.color]; })));
-            frag.appendChild(mb);
         }
 
         var gb = panel('LED Strip Global Settings');
@@ -2282,10 +2219,10 @@
         });
         // Structured rows count too - a tab can be non-empty without any `set`.
         var extraRows = {
-            ports: ['serial'],
-            servos: ['servo'], mixer: ['mixerInput', 'mixerRule', 'mixerOverride'],
-            beepers: ['beeper'], ledstrip: ['led', 'color', 'mode_color'],
-            board: ['timer', 'dma', 'resource']
+            configuration: ['serial'],
+            servos: ['servo'], mixer: ['mixerInput'],
+            beepers: ['beeper', 'beacon'], ledstrip: ['led', 'color'],
+            receiver: ['map'], failsafe: ['rxfail']
         }[tabId] || [];
         extraRows.forEach(function (k) { n += rows(k).length; });
         if (tabId === 'modes') { n += rows('aux').filter(auxInUse).length; }

@@ -351,23 +351,21 @@
           names: ['profile_name', 'pid_process_denom', 'filter_process_denom'] },
 
         // ---- Rescue --------------------------------------------------------
+        /* The screenshots do not cover this tab, so any grouping would be
+         * invented; one box named for the tab invents the least. */
         { tab: 'blackbox', title: 'Blackbox',
           names: ['blackbox_device', 'blackbox_mode', 'blackbox_rate_denom',
-                  'blackbox_initial_erase_kb', 'blackbox_rolling_erase',
-                  'blackbox_gracetime', 'blackbox_grace_period'] },
-        { tab: 'blackbox', title: 'Logged Fields',
-          names: ['blackbox_log_attitude', 'blackbox_log_alt', 'blackbox_log_vbus',
-                  'blackbox_log_temp', 'blackbox_log_esc', 'blackbox_log_bec',
-                  'blackbox_log_battery', 'blackbox_log_rc', 'blackbox_log_gyro',
-                  'blackbox_log_setpoint', 'blackbox_log_pid', 'blackbox_log_mixer',
-                  'blackbox_log_servos', 'blackbox_log_motors', 'blackbox_log_gps',
-                  'blackbox_log_rssi', 'blackbox_log_debug',
+                  'blackbox_initial_erase_kb', 'blackbox_rolling_erase', 'blackbox_gracetime',
+                  'blackbox_grace_period', 'blackbox_log_attitude', 'blackbox_log_alt',
+                  'blackbox_log_vbus', 'blackbox_log_temp', 'blackbox_log_esc',
+                  'blackbox_log_bec', 'blackbox_log_battery', 'blackbox_log_rc',
+                  'blackbox_log_gyro', 'blackbox_log_setpoint', 'blackbox_log_pid',
+                  'blackbox_log_mixer', 'blackbox_log_servos', 'blackbox_log_motors',
+                  'blackbox_log_gps', 'blackbox_log_rssi', 'blackbox_log_debug',
                   'blackbox_log_acc', 'blackbox_log_command', 'blackbox_log_esc2',
                   'blackbox_log_governor', 'blackbox_log_gyro_raw', 'blackbox_log_mag',
-                  'blackbox_log_rpm', 'blackbox_log_vbec'] },
-        { tab: 'blackbox', title: 'Storage',
-          names: ['sdcard_mode', 'sdcard_detect_inverted', 'sdcard_spi_bus',
-                  'flash_spi_bus'] }
+                  'blackbox_log_rpm', 'blackbox_log_vbec', 'sdcard_mode',
+                  'sdcard_detect_inverted', 'sdcard_spi_bus', 'flash_spi_bus'] }
     ];
 
     /* Labels that reading the CLI name alone would get wrong or clumsy. */
