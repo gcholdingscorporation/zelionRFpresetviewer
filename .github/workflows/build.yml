@@ -41,6 +41,10 @@ jobs:
       # Loads the built page for each sample and re-derives every value it
       # shows straight from the file, independently of the viewer's own code.
       - run: node tools/verify_render.js samples/*.txt
+      # The side-by-side comparison, checked against the files it compares: a
+      # file against itself must show no differences at all, and the rail and
+      # the All Settings page must agree on how many there are between two.
+      - run: node tools/verify_compare.js samples/*.txt
 
   windows-exe:
     name: portable Windows .exe

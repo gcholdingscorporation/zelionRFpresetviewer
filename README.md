@@ -3,9 +3,12 @@
 A read-only viewer for Rotorflight CLI files. Load a `dump all`, a `diff all`, or a
 preset snippet and it is laid out the way the
 [Rotorflight Configurator](https://github.com/rotorflight/rotorflight-configurator)
-lays out its tabs — Setup, Configuration, Ports, Receiver, Modes, Adjustments,
-Failsafe, Power, Motors, Governor, Servos, Mixer, Filters, Rates, PID Profiles,
-Rescue, Blackbox, OSD, LED Strip, Beepers, GPS and Board.
+lays out its tabs — Setup, Configuration, Receiver, Failsafe, Power, Motors,
+Governor, Servos, Mixer, Gyro, Rates, Profiles, Modes, Adjustments, LED Strip,
+Beepers and Blackbox.
+
+Load a second file and the two are shown side by side, with everything they
+disagree on marked.
 
 It does not talk to a flight controller and cannot change one. It reads a file
 and shows you what is in it.
@@ -120,13 +123,50 @@ Two tabs exist so nothing can hide:
   recognise — a setting from a newer firmware, say — is listed here and flagged.
 - **CLI** shows the original file with line numbers and search highlighting.
 
-### Values are not rescaled
+## Comparing two files
 
-Every value is displayed exactly as the CLI printed it. Rotorflight stores a
-number of settings in scaled integer units (for instance `vbat_full_cell_voltage
-= 420`), and the Configurator converts some of them for display. This viewer does
-not, because guessing a scale factor would silently produce wrong numbers. A unit
-is shown only where the setting's own name states one (`*_hz`, `*_ms`, `*_kb`).
+Open a file, then **Compare with…** — or drop two files on the page at once, or
+pick two in the file dialog. The page then draws itself twice, once per file,
+side by side, and marks what the two disagree on:
+
+- **Blue rows** are rows the two files show differently. Hovering one says what
+  the other file has there.
+- **Purple rows** are rows only one of the two pages has at all — a box the
+  other file's settings switch off, a servo it does not define, an `rxfail`
+  channel it never printed.
+- **The tab rail** carries a count per tab, so you can see where the two differ
+  before opening anything.
+- **Differences only** drops every row the two agree on, and the boxes that
+  empty out with them.
+- **All Settings** is not paned. It becomes one list of every setting either
+  file names, with a column each, because a `dump` against a `diff` paired row
+  for row would be almost entirely "only in A".
+- **CLI** marks the lines one file has that the other has no copy of.
+
+A setting one file leaves out is compared at its firmware default, so a
+`dump all` and a `diff all` of the same aircraft agree rather than disagreeing
+over every line the `diff` omits. Two caveats follow from that, and the page
+says both where they apply:
+
+- A `dump` prints every `beeper`, `led`, `color` and `rxfail` line where a
+  `diff` prints none, and those are not `set` values with a default to fall back
+  on, so the pages built from them will differ between a dump and a diff of the
+  same aircraft.
+- The default it falls back to is the **firmware's**. A board sets some of its
+  own on top — the voltage dividers, the bus and pin assignments, the gyro
+  alignment — so a `dump` compared with a `diff` differs on exactly those:
+  the `dump` prints the board's value and the `diff` leaves it out as unchanged.
+  Flight tuning is unaffected.
+
+### Values are shown the way the Configurator shows them
+
+Rotorflight stores a number of settings in scaled integer units — the CLI prints
+`gov_spoolup_time = 300` where the Configurator shows `30.0 s` — and the viewer
+applies the same factors. They are not guessed: `tools/gen_scales.py` extracts
+them from the Configurator's own bindings, per firmware release, because several
+changed between 4.5 and 4.6. Where a setting has no such binding the value is
+shown exactly as the CLI printed it, and the unit comes from the Configurator's
+own label.
 
 ## How closely it follows the Configurator
 
@@ -189,13 +229,31 @@ the current Configurator (2.3.x).
 node tools/selftest.js
 ```
 
-This runs the parser over both sample files and checks the generated metadata —
-that every referenced lookup table exists, that parameter groups all map to a
-tab, and that a set of values spot-checked against the firmware source still
+This runs the parser over the sample files and checks the generated metadata and
+the transcribed layouts — that every referenced lookup table exists, that
+parameter groups all map to a tab, that every `cli` name in a layout is a real
+setting, and that a set of values spot-checked against the firmware source still
 match. It needs no browser.
 
-`samples/` holds a real 4.5.1 `diff all` and a synthetic 4.6 `dump all` that
-exercises the line types the real one does not use.
+Two further checks load the built page in a headless browser:
+
+```
+python3 tools/build_single.py
+node tools/verify_render.js samples/*.txt
+node tools/verify_compare.js samples/*.txt
+```
+
+`verify_render.js` re-derives every value a transcribed page shows straight from
+the raw file, independently of the viewer's own code, and compares.
+`verify_compare.js` checks the comparison: a file compared with itself must show
+no differences anywhere, and the rail's per-tab counts must add up to what the
+All Settings page finds — those two are worked out by separate code, so agreeing
+is worth something. All three run in CI on every push.
+
+`samples/` holds a real 4.5.1 `diff all`, a real 4.6 `dump all` and `diff all` of
+the same aircraft, and a synthetic 4.6 `dump all` that exercises the line types
+the real ones do not use. Every sample has its `mcu_id` redacted; it is the
+board's unique hardware serial and this repository is public.
 
 ## Layout
 
@@ -213,7 +271,11 @@ tools/gen_settings.py     regenerates data/ from a firmware checkout
 tools/build_single.py     inlines everything into one .html
 tools/build_windows.py    cross-compiles the .exe with Zig
 tools/win_launcher.c      the Windows launcher
-tools/selftest.js         parser and metadata checks
+tools/gen_scales.py       extracts the Configurator's display scale factors
+tools/gen_icons.py        extracts the Configurator's tab icons
+tools/selftest.js         parser, metadata and layout checks
+tools/verify_render.js    every rendered value traced back to its file
+tools/verify_compare.js   the side-by-side comparison, checked against its files
 samples/                  example files
 ```
 

@@ -43,6 +43,14 @@
     --changedText: #8a5300;
     --changedBorder: #e0a021;
 
+    /* Also the viewer's own: what two files being compared disagree on, and
+     * what only one of them has at all. */
+    --diffBg: #eaf3fb;
+    --diffBorder: #4da8da;
+    --diffText: #17537e;
+    --onlyBg: #f4ecf9;
+    --onlyBorder: #9b6fc4;
+
     --font-ui: 'Open Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
@@ -69,6 +77,12 @@ html[data-theme="dark"] {
     --changedBg: #4a3a18;
     --changedText: #ffcc66;
     --changedBorder: #b8860b;
+
+    --diffBg: #1f3b50;
+    --diffBorder: #4da8da;
+    --diffText: #9fd4f2;
+    --onlyBg: #382b46;
+    --onlyBorder: #b08ed6;
 }
 
 /* ------------------------------------------------------------------- base */
@@ -343,6 +357,15 @@ input:disabled, select:disabled {
     break-inside: avoid;
     -webkit-column-break-inside: avoid;
 }
+
+/* The Configurator is built for a 1280-wide window and flows its boxes into
+   two columns. On a wider screen that leaves most of the page empty, with the
+   dead space falling between each label and the edge of its box, so the boxes
+   are given more columns to flow into rather than more width each. The box
+   itself keeps the Configurator's proportions at every step. */
+@media only screen and (min-width: 1500px) { .columns { column-count: 3; } }
+@media only screen and (min-width: 1960px) { .columns { column-count: 4; } }
+@media only screen and (min-width: 2500px) { .columns { column-count: 5; } }
 
 @media only screen and (max-width: 1100px) {
     .columns { column-count: 1; }
@@ -780,3 +803,181 @@ span.swatch {
 .curve-grid { stroke: var(--superSubtleAccent); stroke-width: .5; }
 .curve-line { fill: none; stroke: #e03030; stroke-width: 2; }
 .curve-dot  { fill: #e03030; }
+
+/* ------------------------------------------------------------ comparison */
+
+/* Two files are two panes of the same page, side by side and scrolling
+   together. Each pane is half the width, so the boxes inside it get half the
+   columns they would have had. */
+.panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+}
+
+.pane { min-width: 0; }
+
+#content.comparing .columns { column-count: 1; }
+@media only screen and (min-width: 1500px) {
+    #content.comparing .columns { column-count: 2; }
+}
+@media only screen and (min-width: 2500px) {
+    #content.comparing .columns { column-count: 3; }
+}
+
+/* Under about a tablet the two panes stop being side by side and stack, which
+   is still a comparison - the marks say what differs - but a readable one. */
+@media only screen and (max-width: 900px) {
+    .panes { grid-template-columns: 1fr; }
+}
+
+.pane-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    margin-bottom: 8px;
+    background: var(--alternativeBackground);
+    border: 1px solid var(--superSubtleAccent);
+    border-radius: 3px;
+    font-size: 11px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.pane-head .grow { flex: 1; }
+
+.pane-head .pane-name {
+    color: var(--defaultText);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pane-head .pane-fw { color: var(--mutedText); font-family: var(--font-mono); font-size: 10px; }
+
+/* Which of the two files this is, wherever the two are named together. */
+.pane-tag {
+    display: inline-block;
+    min-width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    border-radius: 3px;
+    background: var(--darkAccent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 5px;
+    flex: 0 0 auto;
+}
+
+.btn.tiny { height: 20px; padding: 0 8px; font-size: 10px; }
+
+/* A row the two files show differently. Unlike the "changed" marking, which
+   is about one value against its firmware default, this is about the page as a
+   whole, so it tints the row rather than just the control: a comparison is
+   read by scanning for the marks, not by reading every row. */
+tr.is-diff > td {
+    background: var(--diffBg);
+    box-shadow: inset 0 -1px 0 var(--diffBorder);
+}
+
+tr.is-diff td.control input,
+tr.is-diff td.control select {
+    color: var(--diffText);
+    -webkit-text-fill-color: var(--diffText);
+    font-weight: 700;
+    border-color: var(--diffBorder);
+}
+
+tr.is-diff > td:first-child { box-shadow: inset 3px 0 0 var(--diffBorder), inset 0 -1px 0 var(--diffBorder); }
+
+/* A row only one of the two pages has at all - a box the other file's settings
+   switch off, an extra servo, a mode it does not use. */
+tr.is-only > td {
+    background: var(--onlyBg);
+    box-shadow: inset 0 -1px 0 var(--onlyBorder);
+}
+
+tr.is-only > td:first-child { box-shadow: inset 3px 0 0 var(--onlyBorder), inset 0 -1px 0 var(--onlyBorder); }
+
+/* What the comparison found on this page, in the toolbar beside the filters. */
+.diffcount {
+    font-size: 11px;
+    color: var(--mutedText);
+    border: 1px solid var(--superSubtleAccent);
+    border-radius: 10px;
+    padding: 2px 9px;
+    white-space: nowrap;
+}
+
+.diffcount.on {
+    color: var(--diffText);
+    border-color: var(--diffBorder);
+    background: var(--diffBg);
+    font-weight: 600;
+}
+
+/* The rail counts stop being "how much of the file is on this tab" and become
+   "how much the two files disagree on here", so a tab with nothing to look at
+   should recede rather than shout a zero. */
+.tab-link .count.differs {
+    opacity: 1;
+    color: #fff;
+    background: var(--darkAccent);
+    border-radius: 8px;
+    padding: 0 6px;
+    font-weight: 700;
+}
+
+.tab-link.active .count.differs { background: #000; color: var(--accent); }
+
+/* A CLI line the other file has no copy of. */
+pre.cli .ln.only { background: var(--diffBg); box-shadow: inset 3px 0 0 var(--diffBorder); }
+
+/* The header names two files rather than one, so it needs the room. */
+#header .filemeta .pane-tag { margin-right: 4px; }
+
+/* The merged comparison list. A full-width table would throw the two value
+   columns to opposite edges of the page with the comparison in between, so the
+   columns that carry meaning pack to the left, the two values face each other
+   across a rule, and the slack goes to the column that is only a signpost. */
+table.rf.cmp td, table.rf.cmp th { white-space: nowrap; width: 1%; }
+table.rf.cmp td.va, table.rf.cmp th:nth-child(3) { text-align: right; padding-right: 12px; }
+table.rf.cmp td.vb, table.rf.cmp th:nth-child(4) {
+    text-align: left;
+    padding-left: 12px;
+    border-left: 1px solid var(--superSubtleAccent);
+}
+table.rf.cmp td.tabcol, table.rf.cmp th:last-child {
+    width: auto;
+    text-align: left;
+    padding-left: 24px;
+}
+/* `width: 1%` sizes a column to its minimum content width, and a cell that is
+   allowed to wrap has a minimum of one word - so "SPIFLASH (default)" would
+   break over two lines in a column with room to spare. Values stay on one line
+   here and the table scrolls sideways if one of the long arrays needs it. */
+table.rf.cmp td.wrap { white-space: nowrap; max-width: none; }
+
+/* Both pane heads have to line up, or every box below them is off by the
+   height of the close button that only one of them carries. */
+.pane-head { height: 30px; }
+
+/* A rule between the two panes, so a long box on one side is never read as
+   running on into the other. The rule sits on the pane's own edge rather than
+   taking width from it: the two panes have to stay exactly the same width or
+   a label wraps on one side and not the other, and the rows stop lining up. */
+.panes { column-gap: 24px; }
+.panes > .pane + .pane { border-left: 1px solid var(--superSubtleAccent); }
+@media only screen and (max-width: 900px) {
+    .panes > .pane + .pane {
+        border-left: 0;
+        border-top: 1px solid var(--superSubtleAccent);
+        padding-top: 12px;
+    }
+}

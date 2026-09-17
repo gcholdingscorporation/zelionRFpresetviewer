@@ -27,10 +27,14 @@
     </div>
     <div class="header-actions">
         <button class="btn" id="new-btn" type="button">Load another</button>
+        <button class="btn" id="cmp-btn" type="button" hidden>Compare with…</button>
         <button class="btn primary" id="open-btn" type="button">Open file…</button>
         <button class="btn" id="theme-btn" type="button">Dark</button>
     </div>
-    <input type="file" id="file-input" accept=".txt,.cli,.preset,.conf,.config,text/plain" hidden>
+    <input type="file" id="file-input" accept=".txt,.cli,.preset,.conf,.config,text/plain" multiple hidden>
+    <!-- The second file of a comparison picks through its own input, so
+         choosing it can never replace the first. -->
+    <input type="file" id="cmp-input" accept=".txt,.cli,.preset,.conf,.config,text/plain" hidden>
 </div>
 
 <div id="statusline"><span id="statustext">No file loaded</span></div>
@@ -42,11 +46,13 @@
             Drop a <code>dump all</code>, <code>diff all</code> or preset file below and it is
             laid out the way the Rotorflight Configurator lays out its tabs — Governor, Mixer,
             Servos, Filters, PID Profiles, Rates, Modes and the rest.
+            Drop <b>two</b> files and they are shown side by side with everything
+            they disagree on marked.
             Everything happens in your browser; nothing is uploaded.
         </p>
 
         <div class="dropbox">
-            <p style="margin-bottom:14px">Drag a file anywhere on this page</p>
+            <p style="margin-bottom:14px">Drag a file — or two, to compare them — anywhere on this page</p>
             <button class="btn primary" id="open-btn-2" type="button">Choose a file…</button>
         </div>
 
@@ -67,6 +73,7 @@
                     <li>Anything the file changed, highlighted</li>
                     <li>Enum names, ranges and types on hover</li>
                     <li>A searchable list of every value</li>
+                    <li>Two files side by side, with the differences marked</li>
                     <li>The original file, with line numbers</li>
                 </ul></div></div></div>
             <div class="rf-section"><div class="container"><div class="header"><span class="title">Good to know</span></div><div class="content"><ul>
@@ -87,7 +94,7 @@
 <!-- The Configurator's own footer strip, with what a file can fill in. -->
 <div id="footer"><span id="footertext"></span></div>
 
-<div id="drop">Drop a Rotorflight CLI file to view it</div>
+<div id="drop">Drop a Rotorflight CLI file to view it — or two to compare them</div>
 
 <script src="data/labels-2.3.js"></script>
 <script src="data/layout-2.3.js"></script>

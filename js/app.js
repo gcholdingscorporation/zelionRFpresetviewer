@@ -24,7 +24,14 @@
         filter: '',
         onlyChanged: false,
         showCli: false,
-        fileName: ''
+        fileName: '',
+        /* Up to two loaded files. Every renderer below reads `state.parsed`,
+         * so a side-by-side is drawn by pointing that at one file and then the
+         * other, rather than by teaching each of them about a second file. */
+        files: [],
+        active: 0,
+        /* In a comparison, hide everything the two files agree on. */
+        diffOnly: false
     };
 
     // ------------------------------------------------------------ helpers
@@ -69,6 +76,26 @@
 
     function meta(name) {
         return state.db && state.db.settings[name] ? state.db.settings[name] : null;
+    }
+
+    function comparing() { return state.files.length > 1; }
+
+    /* Point the renderers at one of the loaded files. */
+    function useFile(i) {
+        var f = state.files[i];
+        if (!f) { return; }
+        state.active = i;
+        state.parsed = f.parsed;
+        state.db = f.db;
+        state.dbKey = f.dbKey;
+        state.fileName = f.name;
+    }
+
+    function fileLabel(i) {
+        var f = state.files[i];
+        if (!f) { return ''; }
+        return (comparing() ? (i === 0 ? 'A \u00b7 ' : 'B \u00b7 ') : '')
+            + (f.name || 'pasted text');
     }
 
     /* Some settings are stored in tenths and shown scaled: the CLI prints
@@ -237,6 +264,7 @@
         icon.title = rowTooltip(name, m, present);
         help.appendChild(icon);
         rowOrder(row, control, lab, was, help);
+        row.setAttribute('data-k', 'set:' + name);
 
         return row;
     }
@@ -322,9 +350,12 @@
                 add(S.tabFor(name, state.db.settings[name]), name);
             });
         }
-        // Names from the file that the metadata does not cover.
-        (state.parsed ? state.parsed.allSettings() : []).forEach(function (s) {
-            if (!meta(s.name)) { add('all', s.name); }
+        // Names from the file, or from either file, that the metadata does
+        // not cover.
+        state.files.forEach(function (f) {
+            f.parsed.allSettings().forEach(function (s) {
+                if (!meta(s.name)) { add('all', s.name); }
+            });
         });
 
         S.SECTIONS.forEach(function (sec) {
@@ -497,6 +528,15 @@
         var tb = el('tbody');
         rows.forEach(function (cells) {
             var r = el('tr');
+            /* The first column of these tables is an identity - a servo
+             * number, a mode name, a setting name - so it is what pairs a row
+             * with its opposite number when two files are shown side by side.
+             * Keying it here saves every caller from saying so. */
+            var first = cells.length ? cells[0] : null;
+            if (first !== null && first !== undefined && !(first instanceof Node)) {
+                r.setAttribute('data-k', 'row:' + String(
+                    typeof first === 'object' ? first.text : first));
+            }
             cells.forEach(function (c) {
                 if (c && typeof c === 'object' && !(c instanceof Node)) {
                     r.appendChild(el('td', c.cls || null, c.text));
@@ -554,6 +594,7 @@
         control.appendChild(input);
         row.appendChild(control);
         row.appendChild(el('td', 'label', label));
+        row.setAttribute('data-k', 'info:' + label);
         return row;
     }
 
@@ -1166,7 +1207,7 @@
                     { text: def === null ? (meta(s.name) ? '—' : 'unknown setting') : def,
                       cls: 'dim wrap' },
                     { text: tabDef ? tabDef.name : tabId, cls: 'dim' },
-                    { text: s.entry.line, cls: 'dim' }
+                    { text: s.entry.line, cls: 'dim nodiff' }
                 ];
             }),
             { empty: 'Nothing matches the current filter.' }));
@@ -1527,6 +1568,7 @@
         var icon = el('div', 'helpicon', '?');
         icon.title = why;
         help.appendChild(icon);
+        row.setAttribute('data-k', 'derived:' + provenance);
         return rowOrder(row, control, lab, el('td', 'was'), help);
     }
 
@@ -1556,6 +1598,7 @@
         icon.title = 'The Configurator computes this from ' + (spec.from || 'the mixer setup')
             + '. It is not a stored setting, so it has no firmware default.';
         help.appendChild(icon);
+        row.setAttribute('data-k', 'calc:' + spec.calc);
         return rowOrder(row, control, lab, el('td', 'was'), help);
     }
 
@@ -1625,6 +1668,7 @@
         var icon = el('div', 'helpicon', '?');
         icon.title = rowTooltip(spec.cli, m, present);
         help.appendChild(icon);
+        row.setAttribute('data-k', 'set:' + cli);
         return rowOrder(row, control, lab, was, help);
     }
 
@@ -1675,6 +1719,7 @@
             head.appendChild(lab);
             head.appendChild(el('td', 'was'));
             head.appendChild(el('td', 'help'));
+            head.setAttribute('data-k', 'group:' + spec.group);
             tbody.appendChild(head);
         }
 
@@ -2249,7 +2294,7 @@
             var count = tabContentCount(t.id);
             var link = el('div', 'tab-link' +
                 (t.id === state.tab ? ' active' : '') +
-                (count === 0 ? ' empty' : ''));
+                (!DIFFS && count === 0 ? ' empty' : ''));
             link.setAttribute('data-tab', t.id);
 
             /* The Configurator's own icon, masked so it takes the tab's
@@ -2262,7 +2307,18 @@
             link.appendChild(icon);
 
             link.appendChild(el('span', 'tabname', t.name));
-            if (count !== null) {
+            /* In a comparison the useful number is not how much of the file a
+             * tab holds but whether the two files disagree anywhere on it. */
+            if (DIFFS) {
+                var d = t.id === 'cli' ? null : (DIFFS[t.id] || 0);
+                if (d !== null) {
+                    var mark = el('span', 'count' + (d ? ' differs' : ''), d || '');
+                    mark.title = d
+                        ? d + ' setting' + (d === 1 ? '' : 's') + ' differ between the two files'
+                        : 'The two files agree on every setting this tab covers';
+                    link.appendChild(mark);
+                }
+            } else if (count !== null) {
                 var badge = el('span', 'count', count);
                 badge.title = count + ' value' + (count === 1 ? '' : 's') + ' from this file';
                 link.appendChild(badge);
@@ -2283,40 +2339,81 @@
             return row;
         }
 
-        var first = el('div');
-        first.appendChild(el('span', 'chip kind-' + p.kind, p.kind));
-        first.appendChild(document.createTextNode(' ' + (state.fileName || 'pasted text')));
-        meta$.appendChild(first);
+        function fileLine(f, tag) {
+            var row = el('div');
+            if (tag) { row.appendChild(el('span', 'pane-tag', tag)); }
+            row.appendChild(el('span', 'chip kind-' + f.parsed.kind, f.parsed.kind));
+            row.appendChild(document.createTextNode(' ' + (f.name || 'pasted text')));
+            return row;
+        }
+
+        if (comparing()) {
+            meta$.appendChild(fileLine(state.files[0], 'A'));
+            meta$.appendChild(fileLine(state.files[1], 'B'));
+        } else {
+            meta$.appendChild(fileLine(state.files[0], ''));
+        }
 
         var firmware = (p.header.version || 'unknown')
             + (p.header.firmware ? ' ' + p.header.firmware : '');
         var target = (p.header.board_name || '?')
             + (p.header.mcuTarget ? '(' + p.header.mcuTarget + ')' : '');
-        meta$.appendChild(line('Firmware', firmware));
-        meta$.appendChild(line('Target', target));
+        if (!comparing()) {
+            meta$.appendChild(line('Firmware', firmware));
+            meta$.appendChild(line('Target', target));
+        }
 
         var footer = clear($('#footertext'));
         if (footer) {
-            [['Craft', p.header.craftName || '\u2014'],
-             ['Settings', String(p.setCount)],
-             ['Profiles', Object.keys(p.profiles).length + ' PID, '
-                 + Object.keys(p.rateProfiles).length + ' rate'],
-             ['Firmware', firmware],
-             ['Target', target]].forEach(function (pair) {
-                var item = el('span');
-                item.appendChild(document.createTextNode(pair[0] + ': '));
-                item.appendChild(el('b', null, pair[1]));
-                footer.appendChild(item);
-            });
+            /* One file fills the strip the way the Configurator's does. Two
+             * share it, tagged, because which file a number belongs to matters
+             * more here than the labels do. */
+            if (comparing()) {
+                state.files.forEach(function (f, i) {
+                    var q = f.parsed;
+                    var item = el('span');
+                    item.appendChild(el('span', 'pane-tag', i === 0 ? 'A' : 'B'));
+                    item.appendChild(el('b', null, q.header.craftName || '\u2014'));
+                    item.appendChild(document.createTextNode(' \u00b7 ' + q.setCount
+                        + ' settings \u00b7 RF ' + (q.header.version || '?')
+                        + ' \u00b7 ' + (q.header.board_name || '?')));
+                    footer.appendChild(item);
+                });
+            } else {
+                [['Craft', p.header.craftName || '\u2014'],
+                 ['Settings', String(p.setCount)],
+                 ['Profiles', Object.keys(p.profiles).length + ' PID, '
+                     + Object.keys(p.rateProfiles).length + ' rate'],
+                 ['Firmware', firmware],
+                 ['Target', target]].forEach(function (pair) {
+                    var item = el('span');
+                    item.appendChild(document.createTextNode(pair[0] + ': '));
+                    item.appendChild(el('b', null, pair[1]));
+                    footer.appendChild(item);
+                });
+            }
         }
 
         var status = $('#statustext');
         if (status) {
-            status.textContent = (p.header.craftName ? p.header.craftName + ' \u2014 ' : '') +
-                p.setCount + ' settings, ' +
-                Object.keys(p.profiles).length + ' profiles, ' +
-                Object.keys(p.rateProfiles).length + ' rate profiles \u2014 ' +
-                'read with Rotorflight ' + (state.dbKey || '?') + ' metadata';
+            if (comparing()) {
+                var total = 0;
+                Object.keys(DIFFS || {}).forEach(function (k) { total += DIFFS[k]; });
+                var a = state.files[0];
+                var b = state.files[1];
+                status.textContent = 'Comparing ' + (a.name || 'pasted text')
+                    + ' with ' + (b.name || 'pasted text') + ' \u2014 '
+                    + total + ' setting' + (total === 1 ? '' : 's') + ' differ'
+                    + (total === 1 ? 's' : '') + ' \u2014 read with Rotorflight '
+                    + (a.dbKey === b.dbKey ? (a.dbKey || '?')
+                        : (a.dbKey || '?') + ' and ' + (b.dbKey || '?')) + ' metadata';
+            } else {
+                status.textContent = (p.header.craftName ? p.header.craftName + ' \u2014 ' : '') +
+                    p.setCount + ' settings, ' +
+                    Object.keys(p.profiles).length + ' profiles, ' +
+                    Object.keys(p.rateProfiles).length + ' rate profiles \u2014 ' +
+                    'read with Rotorflight ' + (state.dbKey || '?') + ' metadata';
+            }
         }
     }
 
@@ -2361,9 +2458,284 @@
             nameLab.appendChild(nameCb);
             nameLab.appendChild(document.createTextNode('CLI names'));
             bar.appendChild(nameLab);
+
+            if (comparing()) {
+                var diffLab = el('label');
+                var diffCb = el('input');
+                diffCb.type = 'checkbox';
+                diffCb.checked = state.diffOnly;
+                diffCb.onchange = function () {
+                    state.diffOnly = diffCb.checked;
+                    renderContentOnly();
+                };
+                diffLab.appendChild(diffCb);
+                diffLab.appendChild(document.createTextNode('Differences only'));
+                bar.appendChild(diffLab);
+            }
         }
 
         host.appendChild(bar);
+        return bar;
+    }
+
+    // ------------------------------------------------------- comparison
+
+    /* Two files are compared by drawing the same page twice, once per file,
+     * and then pairing the rows of the two panes. Doing it on the rendered
+     * page rather than on the parsed files means the comparison is of what the
+     * viewer actually shows - scaled, named, computed and all - which is what
+     * the reader is comparing. It also means no renderer has to know that a
+     * second file exists.
+     *
+     * Rows pair by key. A settings row carries its CLI name; a table row is
+     * keyed by its first column, which in these tables is an identity rather
+     * than a value. Keys are scoped to the box they sit in, because the same
+     * name turns up in more than one box, and a key that repeats inside one
+     * box is numbered by the order it appears in. */
+
+    var SEP = String.fromCharCode(0);
+    var USEP = String.fromCharCode(31);
+
+    function nearestBox(node) {
+        var n = node;
+        while (n && n !== document) {
+            if (n.classList && n.classList.contains('gui_box')) { return n; }
+            n = n.parentNode;
+        }
+        return null;
+    }
+
+    function boxTitleOf(node) {
+        var box = nearestBox(node);
+        var title = box ? box.querySelector('.spacer_box_title') : null;
+        return title ? title.textContent : '';
+    }
+
+    function rowKey(tr) {
+        var k = tr.getAttribute('data-k');
+        if (!k) {
+            var first = tr.firstElementChild;
+            k = 'cell:' + (first ? (first.textContent || '').trim() : '');
+        }
+        return boxTitleOf(tr) + SEP + k;
+    }
+
+    /* What a cell shows, whichever widget it shows it in. */
+    function cellText(td) {
+        var input = td.querySelector('input');
+        if (input) { return input.value; }
+        var sel = td.querySelector('select');
+        if (sel) { return (sel.textContent || '').trim(); }
+        var sw = td.querySelector('.switch');
+        if (sw) { return sw.classList.contains('on') ? 'ON' : 'OFF'; }
+        return (td.textContent || '').trim();
+    }
+
+    /* What a row is compared on: the value in its control where it has one,
+     * and otherwise every cell of it except those marked as a fact about the
+     * file rather than about the setting, such as a line number. */
+    function rowSignature(tr) {
+        var control = tr.querySelector('td.control');
+        if (control) { return cellText(control); }
+        var out = [];
+        for (var i = 0; i < tr.children.length; i++) {
+            var td = tr.children[i];
+            if (td.classList.contains('nodiff')) { continue; }
+            out.push(cellText(td));
+        }
+        return out.join(USEP);
+    }
+
+    function indexPane(pane) {
+        var map = {};
+        var seen = {};
+        var list = pane.querySelectorAll('tr');
+        for (var i = 0; i < list.length; i++) {
+            var tr = list[i];
+            if (tr.parentNode && tr.parentNode.tagName === 'THEAD') { continue; }
+            if (tr.classList.contains('subheading')) { continue; }
+            var k = rowKey(tr);
+            seen[k] = (seen[k] || 0) + 1;
+            map[k + SEP + seen[k]] = tr;
+        }
+        return map;
+    }
+
+    /* Mark every row the two panes disagree on, and every row only one of them
+     * has. Returns how many rows that came to. */
+    function markDifferences(paneA, paneB) {
+        var a = indexPane(paneA);
+        var b = indexPane(paneB);
+        var n = 0;
+
+        Object.keys(a).forEach(function (k) {
+            var ra = a[k];
+            var rb = b[k];
+            if (!rb) {
+                ra.classList.add('is-only');
+                ra.title = 'B’s page does not have this row.';
+                n++;
+                return;
+            }
+            var sa = rowSignature(ra);
+            var sb = rowSignature(rb);
+            if (sa === sb) { return; }
+            ra.classList.add('is-diff');
+            rb.classList.add('is-diff');
+            ra.title = 'B has ' + (sb === '' ? '(nothing)' : sb);
+            rb.title = 'A has ' + (sa === '' ? '(nothing)' : sa);
+            n++;
+        });
+
+        Object.keys(b).forEach(function (k) {
+            if (a[k]) { return; }
+            b[k].classList.add('is-only');
+            b[k].title = 'A’s page does not have this row.';
+            n++;
+        });
+
+        return n;
+    }
+
+    /* "Differences only": drop the rows the two files agree on, then the
+     * tables and boxes that emptied out, so what is left is the disagreement
+     * and nothing else. */
+    function pruneToDifferences(root) {
+        var i, j;
+        var bodies = root.querySelectorAll('tbody');
+        for (i = 0; i < bodies.length; i++) {
+            var kept = [].slice.call(bodies[i].children);
+            for (j = 0; j < kept.length; j++) {
+                var tr = kept[j];
+                if (tr.classList.contains('is-diff') || tr.classList.contains('is-only')) {
+                    continue;
+                }
+                tr.parentNode.removeChild(tr);
+            }
+        }
+        var tables = root.querySelectorAll('table');
+        for (i = 0; i < tables.length; i++) {
+            var tb = tables[i].querySelector('tbody');
+            if (tb && !tb.children.length) {
+                var wrap = tables[i].parentNode;
+                wrap.removeChild(tables[i]);
+                if (wrap.classList.contains('tablewrap') && !wrap.children.length) {
+                    wrap.parentNode.removeChild(wrap);
+                }
+            }
+        }
+        var boxes = root.querySelectorAll('.gui_box');
+        for (i = 0; i < boxes.length; i++) {
+            if (!boxes[i].querySelector('tbody tr')) {
+                boxes[i].parentNode.removeChild(boxes[i]);
+            }
+        }
+    }
+
+    /* How many settings the two files disagree on, per tab, read from the
+     * parsed files rather than from the page so the rail can say it for every
+     * tab at once. A value a file leaves out is at its firmware default, which
+     * is what it is compared at: a `diff` prints only what changed where a
+     * `dump` prints everything, and those two should not read as disagreeing
+     * over a value they both leave alone. */
+    function shownFor(file, name, entry) {
+        var wasDb = state.db;
+        var wasKey = state.dbKey;
+        state.db = file.db;
+        state.dbKey = file.dbKey;
+        var out = entry ? valueDisplay(entry, name) : defaultDisplay(name);
+        state.db = wasDb;
+        state.dbKey = wasKey;
+        return out;
+    }
+
+    function tabDiffCounts() {
+        var fa = state.files[0];
+        var fb = state.files[1];
+        if (!fb) { return null; }
+        var counts = {};
+        var wasDb = state.db;
+        state.db = fa.db;
+
+        function bump(name) {
+            var tab = S.tabFor(name, meta(name));
+            counts[tab] = (counts[tab] || 0) + 1;
+        }
+
+        function compareSections(secA, secB) {
+            var names = {};
+            Object.keys(secA || {}).forEach(function (n) { names[n] = true; });
+            Object.keys(secB || {}).forEach(function (n) { names[n] = true; });
+            Object.keys(names).forEach(function (n) {
+                var x = shownFor(fa, n, secA && secA[n]);
+                var y = shownFor(fb, n, secB && secB[n]);
+                if (x !== y) { bump(n); }
+            });
+        }
+
+        compareSections(fa.parsed.master, fb.parsed.master);
+        for (var i = 0; i < 6; i++) {
+            compareSections(fa.parsed.profiles[i], fb.parsed.profiles[i]);
+            compareSections(fa.parsed.rateProfiles[i], fb.parsed.rateProfiles[i]);
+        }
+        state.db = wasDb;
+        return counts;
+    }
+
+    var DIFFS = null;
+
+    /* The strip at the top of each pane saying which file it is showing. */
+    function paneHead(i) {
+        var f = state.files[i];
+        var head = el('div', 'pane-head');
+        head.appendChild(el('span', 'pane-tag', i === 0 ? 'A' : 'B'));
+        head.appendChild(el('span', 'pane-name', f.name || 'pasted text'));
+        head.appendChild(el('span', 'chip kind-' + f.parsed.kind, f.parsed.kind));
+        if (f.parsed.header.version) {
+            head.appendChild(el('span', 'pane-fw', 'RF ' + f.parsed.header.version));
+        }
+        head.appendChild(el('span', 'grow'));
+        if (i === 1) {
+            var close = el('button', 'btn tiny', 'Close');
+            close.type = 'button';
+            close.title = 'Stop comparing and go back to the first file';
+            close.onclick = function () {
+                state.files = [state.files[0]];
+                useFile(0);
+                render();
+            };
+            head.appendChild(close);
+        }
+        return head;
+    }
+
+    /* The CLI tab has no rows to pair, so its two panes are compared line by
+     * line instead: a line is marked when the other file has no copy of it
+     * left over to match it with. */
+    function markCliLines(paneA, paneB) {
+        function lines(pane) { return pane.querySelectorAll('pre.cli .ln'); }
+        function tally(list) {
+            var t = {};
+            for (var i = 0; i < list.length; i++) {
+                var k = (list[i].textContent || '').trim();
+                t[k] = (t[k] || 0) + 1;
+            }
+            return t;
+        }
+        var n = 0;
+
+        function mark(list, other) {
+            for (var i = 0; i < list.length; i++) {
+                var k = (list[i].textContent || '').trim();
+                if (k === '') { continue; }
+                if (other[k]) { other[k]--; continue; }
+                list[i].classList.add('only');
+                n++;
+            }
+        }
+        mark(lines(paneA), tally(lines(paneB)));
+        mark(lines(paneB), tally(lines(paneA)));
+        return n;
     }
 
     /* The Configurator is written in two visual languages and the difference is
@@ -2394,51 +2766,265 @@
         return S.TABS.filter(function (t) { return t.id === state.tab; })[0] || S.TABS[0];
     }
 
+    /* The page for whichever file `state` is pointed at: its own warnings,
+     * then whatever this tab renders. Pulled out of renderContentOnly() so a
+     * comparison can call it once per file without either call knowing the
+     * other happened. */
+    function buildTabBody(def) {
+        var frag = document.createDocumentFragment();
+        if (state.parsed.warnings.length) {
+            state.parsed.warnings.forEach(function (w) {
+                frag.appendChild(el('div', 'note warn', w));
+            });
+        }
+        if (!state.db && state.tab !== 'cli') {
+            frag.appendChild(el('div', 'note warn',
+                'No firmware metadata is loaded, so defaults and value names are unavailable.'));
+        }
+        frag.appendChild(RENDERERS[def.id] ? RENDERERS[def.id]()
+            : renderLayoutTab(def.id)
+            || renderSettingsTab(def.id, { scope: SCOPED[def.id] || 'master' }));
+        return frag;
+    }
+
+    /* The All Settings page of a comparison is the one page that should not be
+     * two lists side by side. A `dump` prints every setting and a `diff` prints
+     * only what it changed, so paired that way almost every row of the longer
+     * list would have no opposite number and the page would say "only in A"
+     * a thousand times over. One list of every setting either file names, with
+     * a column each, says the same thing in a form that can be read.
+     *
+     * A setting a file leaves out is at its firmware default, which is what it
+     * is compared at, so a `dump` and a `diff` of the same aircraft agree. */
+    function renderAllCompare() {
+        var frag = document.createDocumentFragment();
+        var fa = state.files[0];
+        var fb = state.files[1];
+        var seen = {};
+        var list = [];
+
+        [fa, fb].forEach(function (f) {
+            f.parsed.allSettings().forEach(function (e) {
+                var at = (e.index === null || e.index === undefined) ? '' : e.index;
+                var key = e.scope + ':' + at + ':' + e.name;
+                if (seen[key]) { return; }
+                seen[key] = true;
+                list.push({ name: e.name, scope: e.scope, index: e.index });
+            });
+        });
+
+        list.sort(function (a, b) {
+            if (a.scope !== b.scope) { return a.scope < b.scope ? -1 : 1; }
+            if (a.index !== b.index) { return (a.index || 0) - (b.index || 0); }
+            return a.name < b.name ? -1 : 1;
+        });
+
+        /* What one file shows for one setting, read with that file's own
+         * metadata: the two can be from different releases, and a factor or a
+         * value name that moved between them belongs to the file that used it. */
+        function shownIn(f, e) {
+            var section = e.scope === 'profile' ? f.parsed.profiles[e.index]
+                        : e.scope === 'rateprofile' ? f.parsed.rateProfiles[e.index]
+                        : f.parsed.master;
+            var entry = section && section[e.name];
+            return {
+                text: entry ? shownFor(f, e.name, entry) : null,
+                resolved: shownFor(f, e.name, entry)
+            };
+        }
+
+        var differing = 0;
+        var built = [];
+        list.forEach(function (e) {
+            if (!matchesFilter(e.name, S.prettify(e.name))) { return; }
+            var a = shownIn(fa, e);
+            var b = shownIn(fb, e);
+            var differs = a.resolved !== b.resolved;
+            if (differs) { differing++; }
+            if (state.diffOnly && !differs) { return; }
+
+            var tabId = S.tabFor(e.name, meta(e.name));
+            var tabDef = S.TABS.filter(function (t) { return t.id === tabId; })[0];
+
+            function cell(v, side) {
+                return v.text === null
+                    ? { text: v.resolved === null ? 'no default known'
+                        : v.resolved + ' (default)', cls: 'dim wrap ' + side }
+                    : { text: v.text, cls: 'wrap ' + side + (differs ? ' on' : '') };
+            }
+
+            built.push({
+                differs: differs,
+                cells: [
+                    { text: e.name, cls: 'name' },
+                    { text: e.scope === 'master' ? 'master' : e.scope + ' ' + e.index, cls: 'dim' },
+                    cell(a, 'va'),
+                    cell(b, 'vb'),
+                    { text: tabDef ? tabDef.name : tabId, cls: 'dim tabcol' }
+                ]
+            });
+        });
+
+        var box = panel('Every value in either file',
+            differing + ' of ' + list.length + ' differ');
+        panelBody(box).appendChild(el('div', 'note',
+            'A setting one file leaves out is at its firmware default, and that '
+            + 'is what it is compared at — a `dump all` prints every value '
+            + 'where a `diff all` prints only what was changed, so the two files '
+            + 'of the same aircraft agree here rather than disagreeing on every '
+            + 'line one of them omits. The default it falls back to is the '
+            + 'firmware’s own, and a board sets some of its own on top of '
+            + 'those — the voltage dividers, the bus and pin assignments, the '
+            + 'gyro alignment — so a `dump` compared with a `diff` will differ '
+            + 'on exactly those: the `dump` prints the board’s value and the '
+            + '`diff` leaves it out as unchanged. Flight tuning is unaffected.'
+            + (fa.dbKey === fb.dbKey ? '' :
+                ' The two files are from different releases (' + fa.dbKey + ' and '
+                + fb.dbKey + '), so each is read with its own metadata and some '
+                + 'defaults differ between them.')));
+
+        panelBody(box).appendChild(table(
+            ['Setting', 'Scope', 'A · ' + (fa.name || 'pasted text'),
+             'B · ' + (fb.name || 'pasted text'), 'Tab'],
+            built.map(function (r) { return r.cells; }),
+            { empty: state.diffOnly
+                ? 'The two files agree on every setting either of them names.'
+                : 'Nothing matches the current filter.' }));
+
+        /* `table` builds the rows, so the marking goes on afterwards. */
+        var grid$ = panelBody(box).querySelector('table.rf');
+        if (grid$) { grid$.classList.add('cmp'); }
+        var trs = panelBody(box).querySelectorAll('tbody tr');
+        for (var i = 0; i < built.length && i < trs.length; i++) {
+            if (built[i].differs) { trs[i].classList.add('is-diff'); }
+        }
+
+        frag.appendChild(box);
+        return { frag: frag, count: differing };
+    }
+
     function renderContentOnly() {
         var host = clear($('#content'));
         var def = currentTabDef();
 
         /* Which of the Configurator's two layouts this page uses. */
         var layout = (window.RF_LAYOUT || {})[def.id];
-        state.rowStyle = (layout && layout.style) || 'legacy';
-        host.className = 'style-' + state.rowStyle;
+        var baseStyle = (layout && layout.style) || 'legacy';
+        state.rowStyle = baseStyle;
+        host.className = 'style-' + baseStyle + (comparing() ? ' comparing' : '');
 
         var title = el('div', 'tab_title');
         title.appendChild(document.createTextNode(def.name));
         /* A `diff` leaves most settings out, and the page fills them in from
          * the firmware, which is worth saying once per page rather than never. */
-        if (state.parsed.kind === 'diff') {
+        if (!comparing() && state.parsed.kind === 'diff') {
             title.appendChild(el('span', 'sub',
                 'a diff carries only what changed; the rest are shown at their '
                 + 'firmware default'));
         }
         host.appendChild(title);
 
-        renderToolbar(host);
+        var bar = renderToolbar(host);
 
-        if (state.parsed.warnings.length) {
-            state.parsed.warnings.forEach(function (w) {
-                host.appendChild(el('div', 'note warn', w));
+        /* A `dump all` prints every beeper, LED, colour and failsafe channel
+         * where a `diff all` prints none of them, so those parts of a page
+         * will read as differing when the two files are of different kinds and
+         * the aircraft is the same. Worth saying once, where it will be read.
+         * The All Settings page is unaffected: it compares a missing value at
+         * its firmware default. */
+        if (comparing() && state.files[0].parsed.kind !== state.files[1].parsed.kind) {
+            host.appendChild(el('div', 'note',
+                'These are a ' + state.files[0].parsed.kind + ' and a '
+                + state.files[1].parsed.kind + '. A `dump` prints every beeper, '
+                + 'LED, colour and failsafe channel where a `diff` prints only '
+                + 'what was changed, so rows built from those lines can be marked '
+                + 'as differing on two files that describe the same aircraft. '
+                + 'Settings themselves are compared at what they resolve to, so '
+                + 'they are not affected.'));
+        }
+
+        if (!comparing()) {
+            host.appendChild(buildTabBody(def));
+            applyCliNames();
+            return;
+        }
+
+        if (def.id === 'all') {
+            var merged = renderAllCompare();
+            host.appendChild(merged.frag);
+            if (bar) { bar.appendChild(diffSummary(def, merged.count)); }
+            applyCliNames();
+            return;
+        }
+
+        /* Each pane is the whole page drawn again for the other file. The row
+         * style has to be reset before each one because a box is allowed to
+         * change it part way down a page. */
+        var panes = el('div', 'panes');
+        var bodies = [];
+        state.files.forEach(function (f, i) {
+            var pane = el('div', 'pane');
+            pane.appendChild(paneHead(i));
+            useFile(i);
+            state.rowStyle = baseStyle;
+            var body = el('div', 'pane-body style-' + baseStyle);
+            body.appendChild(buildTabBody(def));
+            pane.appendChild(body);
+            panes.appendChild(pane);
+            bodies.push(body);
+        });
+        useFile(0);
+        host.appendChild(panes);
+
+        var n = def.id === 'cli'
+            ? markCliLines(bodies[0], bodies[1])
+            : markDifferences(bodies[0], bodies[1]);
+
+        if (state.diffOnly && def.id !== 'cli') {
+            bodies.forEach(pruneToDifferences);
+            bodies.forEach(function (body) {
+                if (!body.querySelector('.gui_box, table')) {
+                    body.appendChild(el('div', 'empty-note',
+                        'Nothing on this page differs between the two files.'));
+                }
             });
         }
-        if (!state.db && state.tab !== 'cli') {
-            host.appendChild(el('div', 'note warn',
-                'No firmware metadata is loaded, so defaults and value names are unavailable.'));
-        }
 
-        var body = RENDERERS[def.id] ? RENDERERS[def.id]()
-            : renderLayoutTab(def.id)
-            || renderSettingsTab(def.id, { scope: SCOPED[def.id] || 'master' });
-        host.appendChild(body);
+        if (bar) { bar.appendChild(diffSummary(def, n)); }
         applyCliNames();
+    }
+
+    /* What the comparison found on this page, said once, in the toolbar. */
+    function diffSummary(def, n) {
+        var chip = el('span', 'diffcount' + (n ? ' on' : ''));
+        if (def.id === 'cli') {
+            chip.textContent = n
+                ? n + ' line' + (n === 1 ? '' : 's') + ' only in one file'
+                : 'Both files carry the same lines';
+            chip.title = 'Lines are matched by their text, so a line the other '
+                + 'file has a copy of is not marked wherever it sits in it.';
+        } else {
+            chip.textContent = n
+                ? (def.id === 'all'
+                    ? n + ' setting' + (n === 1 ? ' differs' : 's differ')
+                    : n + (n === 1 ? ' row differs' : ' rows differ') + ' on this page')
+                : 'The two files agree on this page';
+            chip.title = 'Counted on what the page shows, so a value the two '
+                + 'files write differently but display the same does not count.';
+        }
+        return chip;
     }
 
     function render() {
         if (!state.parsed) { renderWelcome(); return; }
+        useFile(0);
+        DIFFS = comparing() ? tabDiffCounts() : null;
         INDEX = buildIndex();
         $('#welcome-wrap').style.display = 'none';
         $('#layout').style.display = 'flex';
         $('#new-btn').hidden = false;
+        $('#cmp-btn').hidden = false;
+        $('#cmp-btn').textContent = comparing() ? 'Change file B\u2026' : 'Compare with\u2026';
         renderHeaderMeta();
         renderSidebar();
         renderContentOnly();
@@ -2451,34 +3037,66 @@
         $('#layout').style.display = 'none';
         $('#welcome-wrap').style.display = 'block';
         $('#new-btn').hidden = true;
+        $('#cmp-btn').hidden = true;
     }
 
     // ------------------------------------------------------- file loading
 
-    function load(text, name) {
-        var parsed;
+    /* One loaded file: the parsed text, and the firmware metadata that matches
+     * the release it came from. The two files of a comparison can be from
+     * different releases, so each carries its own. */
+    function makeFile(text, name) {
+        var parsed = window.RFParser.parse(text);
+        var dbKey = chooseDb(parsed.header.version);
+        return {
+            parsed: parsed,
+            name: name || '',
+            dbKey: dbKey,
+            db: dbKey ? window.RF_DB[dbKey] : null
+        };
+    }
+
+    /* `slot` 1 loads the file to compare against; anything else replaces what
+     * is loaded and ends any comparison in progress. */
+    function load(text, name, slot) {
+        var f;
         try {
-            parsed = window.RFParser.parse(text);
+            f = makeFile(text, name);
         } catch (e) {
             window.alert('Could not parse that file: ' + e.message);
             return;
         }
-        state.parsed = parsed;
-        state.fileName = name || '';
-        state.dbKey = chooseDb(parsed.header.version);
-        state.db = state.dbKey ? window.RF_DB[state.dbKey] : null;
-        state.profile = parsed.activeProfile === null ? 0 : parsed.activeProfile;
-        state.rateProfile = parsed.activeRateProfile === null ? 0 : parsed.activeRateProfile;
-        state.tab = 'setup';
-        state.filter = '';
+
+        if (slot === 1 && state.files.length) {
+            state.files[1] = f;
+        } else {
+            state.files = [f];
+            state.tab = 'setup';
+            state.filter = '';
+            state.diffOnly = false;
+            state.profile = f.parsed.activeProfile === null ? 0 : f.parsed.activeProfile;
+            state.rateProfile = f.parsed.activeRateProfile === null
+                ? 0 : f.parsed.activeRateProfile;
+        }
+        useFile(0);
         render();
     }
 
-    function readFile(file) {
+    function readFile(file, slot, then) {
         var reader = new FileReader();
-        reader.onload = function () { load(String(reader.result), file.name); };
+        reader.onload = function () {
+            load(String(reader.result), file.name, slot);
+            if (then) { then(); }
+        };
         reader.onerror = function () { window.alert('Could not read ' + file.name); };
         reader.readAsText(file);
+    }
+
+    /* Two files dropped together: the first becomes the page, the second the
+     * one it is compared with. Read in turn, because the second can only be
+     * slotted in behind a file that is already loaded. */
+    function readPair(a, b) {
+        readFile(a, 0, function () { readFile(b, 1); });
     }
 
     function wireDragDrop() {
@@ -2498,8 +3116,12 @@
             e.preventDefault();
             depth = 0;
             overlay.classList.remove('on');
-            if (e.dataTransfer.files && e.dataTransfer.files.length) {
-                readFile(e.dataTransfer.files[0]);
+            /* Two files at once is the comparison, said in one gesture. */
+            var dropped = e.dataTransfer.files;
+            if (dropped && dropped.length > 1) {
+                readPair(dropped[0], dropped[1]);
+            } else if (dropped && dropped.length) {
+                readFile(dropped[0]);
             } else {
                 var t = e.dataTransfer.getData('text');
                 if (t) { load(t, ''); }
@@ -2535,14 +3157,31 @@
         };
 
         $('#file-input').onchange = function (e) {
-            if (e.target.files && e.target.files[0]) { readFile(e.target.files[0]); }
+            var picked = e.target.files;
+            if (!picked || !picked.length) { return; }
+            /* Picking two at once is the comparison, said in one gesture. */
+            if (picked.length > 1) { readPair(picked[0], picked[1]); }
+            else { readFile(picked[0]); }
         };
         $('#open-btn').onclick = function () { $('#file-input').click(); };
         $('#open-btn-2').onclick = function () { $('#file-input').click(); };
+
+        /* The second file of a comparison has its own picker so that choosing
+         * it never risks replacing the first. */
+        $('#cmp-input').onchange = function (e) {
+            if (e.target.files && e.target.files[0]) { readFile(e.target.files[0], 1); }
+        };
+        $('#cmp-btn').onclick = function () { $('#cmp-input').click(); };
+
         $('#new-btn').onclick = function () {
             state.parsed = null;
+            state.files = [];
+            DIFFS = null;
             $('#file-input').value = '';
+            $('#cmp-input').value = '';
             clear($('#filemeta'));
+            clear($('#footertext'));
+            $('#statustext').textContent = 'No file loaded';
             renderWelcome();
         };
         $('#paste-btn').onclick = function () {
