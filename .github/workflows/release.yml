@@ -2,7 +2,7 @@ name: release
 
 # Publishes a GitHub Release carrying every platform package.
 #
-#   git tag v1.0.0 && git push origin v1.0.0
+#   git tag v2.0.0 && git push origin v2.0.0
 #
 # or run this workflow by hand and give it a tag name. Everything is rebuilt
 # from the tagged source rather than taken from dist/, so a release can never
@@ -56,6 +56,16 @@ jobs:
         run: |
           pip install ziglang
           python3 tools/build_windows.py
+
+      # A release is exactly when it matters that the pages render what the
+      # file says and that the comparison agrees with the files it compares,
+      # so both browser checks run here too, against the page about to ship.
+      - name: Verify what the page renders
+        run: |
+          npm install --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+          node tools/verify_render.js samples/*.txt
+          node tools/verify_compare.js samples/*.txt
 
       - name: Build the Android package
         working-directory: android
@@ -136,7 +146,9 @@ jobs:
           A read-only viewer for Rotorflight CLI files. Load a \`dump all\`, a
           \`diff all\` or a preset and it is laid out the way the Rotorflight
           Configurator lays out its tabs, with every value shown next to the
-          factory default for the firmware that produced the file.
+          factory default for the firmware that produced the file. Load a second
+          file and the two are shown side by side with everything they disagree
+          on marked.
 
           It never talks to a flight controller and cannot change one.
 
@@ -170,8 +182,27 @@ jobs:
           version banner in your file picks the matching set. Names from a newer
           firmware are flagged rather than dropped.
 
-          Values are shown exactly as the CLI printed them; no scale factor is
-          inferred.
+          Values are shown the way the Configurator shows them. Rotorflight
+          stores a number of settings in scaled integer units — the CLI prints
+          \`gov_spoolup_time = 300\` where the Configurator shows \`30.0 s\` — and
+          the same factors are applied here. They are not guessed: they are
+          extracted from the Configurator's own bindings, per firmware release,
+          because several changed between releases. A setting with no such
+          binding is shown exactly as the CLI printed it.
+
+          ## Comparing two files
+
+          Open a file, then **Compare with…** — or drop two files on the page at
+          once. The page draws itself once per file, side by side, and marks
+          what they disagree on: blue where both pages show a row differently,
+          purple where only one of them has the row at all, a count per tab in
+          the rail, and a **Differences only** filter. **All Settings** becomes
+          one list of every setting either file names with a column each, and
+          the **CLI** tab marks the lines one file has that the other does not.
+
+          A setting one file leaves out is compared at its firmware default, so
+          a \`dump all\` and a \`diff all\` of the same aircraft agree instead of
+          disagreeing over every line the \`diff\` omits.
 
           ## Verify your download
 
