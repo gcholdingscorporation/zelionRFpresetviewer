@@ -186,8 +186,9 @@ check('schema: gov_headspeed shows on the Profiles tab, as it is per profile',
       S.tabFor('gov_headspeed', db45.settings.gov_headspeed), 'profiles');
 check('schema: gov_mode shows on the Governor tab',
       S.tabFor('gov_mode', db45.settings.gov_mode), 'governor');
-check('schema: rescue_mode shows on the Rescue tab',
-      S.tabFor('rescue_mode', db45.settings.rescue_mode), 'rescue');
+// The Configurator has no Rescue tab; rescue is a box on Profiles.
+check('schema: rescue_mode shows on the Profiles tab',
+      S.tabFor('rescue_mode', db45.settings.rescue_mode), 'profiles');
 check('schema: pitch_p_gain shows on the PID Profiles tab',
       S.tabFor('pitch_p_gain', db45.settings.pitch_p_gain), 'profiles');
 check('schema: roll_rc_rate shows on the Rates tab',

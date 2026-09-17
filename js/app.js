@@ -633,10 +633,12 @@
 
     function baud(v) { return v === 0 ? 'auto' : v; }
 
-    function renderPorts() {
-        var frag = document.createDocumentFragment();
-        var box = panel('Serial Ports', rows('serial').length + ' configured');
-        panelBody(box).appendChild(table(
+    /* The Configurator lists the serial ports on its Configuration page, named
+     * S.BUS, TELEM, Int.Rx and so on. Those names are in the board's target
+     * definition rather than in the file, so the ports are listed by the UART
+     * number the file does carry. */
+    function serialPortsTable() {
+        return table(
             ['Port', 'Functions', 'Mask', 'MSP', 'GPS', 'Telemetry', 'Blackbox'],
             rows('serial').map(function (s) {
                 return [
@@ -647,12 +649,7 @@
                     baud(s.telemetryBaud), baud(s.blackboxBaud)
                 ];
             }),
-            { empty: 'No serial port lines in this file (all ports at their defaults).' }));
-        frag.appendChild(box);
-
-        var settings = renderSettingsTab('ports', { quiet: true });
-        frag.appendChild(settings);
-        return frag;
+            { empty: 'No serial port lines in this file (all ports at their defaults).' });
     }
 
     // ------------------------------------------------------------ modes tab
@@ -728,7 +725,6 @@
             frag.appendChild(eb);
         }
 
-        frag.appendChild(renderSettingsTab('modes', { quiet: true }));
         return frag;
     }
 
@@ -765,7 +761,6 @@
             }),
             { empty: 'No adjustment functions are configured in this file.' }));
         frag.appendChild(box);
-        frag.appendChild(renderSettingsTab('adjustments', { quiet: true }));
         return frag;
     }
 
@@ -808,7 +803,6 @@
             '(<code>servo &lt;n&gt; &lt;mid&gt; &lt;min&gt; &lt;max&gt; &lt;rneg&gt; ' +
             '&lt;rpos&gt; &lt;rate&gt; &lt;speed&gt; &lt;flags&gt;</code>); the Configurator ' +
             'shows the same numbers. Reverse and Geo cor are bits 0 and 1 of the flags field.'));
-        frag.appendChild(renderSettingsTab('servos', { quiet: true }));
         return frag;
     }
 
@@ -981,13 +975,6 @@
         if (dyn) { grid.appendChild(dyn); }
 
         frag.appendChild(grid);
-        frag.appendChild(renderSettingsTab('rates', {
-            quiet: true,
-            scope: 'rateprofile',
-            noProfileBar: true,
-            skip: RATES_COVERED,
-            hint: 'not on the Configurator’s Rates tab'
-        }));
         return frag;
     }
 
@@ -1013,41 +1000,6 @@
         var laid = renderLayoutTab('mixer');
         if (laid) { frag.appendChild(laid); }
 
-        var inputs = rows('mixerInput');
-        var ib = panel('Mixer Inputs', 'not on the Configurator\u2019s page');
-        panelBody(ib).appendChild(table(
-            ['Input', 'Min', 'Max', 'Rate'],
-            inputs.map(function (i) {
-                return [{ text: i.input, cls: 'name' }, i.min, i.max, i.rate];
-            }),
-            { empty: 'No mixer input lines in this file (all at their defaults).' }));
-        frag.appendChild(ib);
-
-        var rules = rows('mixerRule');
-        if (rules.length) {
-            var rb = panel('Mixer Rules', 'not on the Configurator\u2019s page');
-            panelBody(rb).appendChild(table(
-                ['#', 'Operation', 'Input', 'Output', 'Weight', 'Offset'],
-                rules.map(function (r) {
-                    return [{ text: r.index, cls: 'name' },
-                            { text: r.op, cls: 'name' }, r.input, r.output, r.weight, r.offset];
-                })));
-            frag.appendChild(rb);
-        }
-
-        var over = rows('mixerOverride');
-        if (over.length) {
-            var ob = panel('Mixer Overrides', 'not on the Configurator\u2019s page');
-            panelBody(ob).appendChild(table(['Input', 'Value'],
-                over.map(function (o) { return [{ text: o.input, cls: 'name' }, o.value]; })));
-            frag.appendChild(ob);
-        }
-
-        frag.appendChild(renderSettingsTab('mixer', {
-            quiet: true,
-            skip: layoutNames('mixer'),
-            hint: 'not on the Configurator\u2019s Mixer tab'
-        }));
         return frag;
     }
 
@@ -1145,13 +1097,6 @@
         });
         if (shown) { frag.appendChild(gb); }
 
-        frag.appendChild(renderSettingsTab('ledstrip', {
-            quiet: true,
-            skip: { ledstrip_profile: true, ledstrip_blink_period_ms: true,
-                    ledstrip_fade_rate: true, ledstrip_flicker_rate: true,
-                    ledstrip_brightness: true },
-            hint: 'not on the Configurator\u2019s LED Strip tab'
-        }));
         return frag;
     }
 
@@ -1213,11 +1158,6 @@
             frag.appendChild(plain);
         }
 
-        frag.appendChild(renderSettingsTab('beepers', {
-            quiet: true,
-            skip: { beeper_dshot_beacon_tone: true },
-            hint: 'not on the Configurator\u2019s Beepers tab'
-        }));
         return frag;
     }
 
@@ -1242,7 +1182,6 @@
             frag.appendChild(box);
         });
 
-        frag.appendChild(renderSettingsTab('board', { quiet: true }));
         return frag;
     }
 
@@ -2201,6 +2140,13 @@
 
             if (box.when && WHEN[box.when] && !WHEN[box.when]()) { return; }
 
+            if (box.serialPorts) {
+                panelBody(gui).appendChild(serialPortsTable());
+                grid.appendChild(gui);
+                rendered++;
+                return;
+            }
+
             if (box.telemetrySensors) {
                 var sensors = telemetrySensorsBox();
                 if (sensors) {
@@ -2292,15 +2238,9 @@
         state.rowStyle = layout.style || 'legacy';
         frag.appendChild(grid);
 
-        /* Anything the Configurator's page leaves out still belongs somewhere,
-         * so it follows in its own box rather than disappearing. */
-        frag.appendChild(renderSettingsTab(tabId, {
-            quiet: true,
-            scope: layout.scope || 'master',
-            noProfileBar: true,
-            skip: layoutNames(tabId),
-            hint: 'not on the Configurator\u2019s page'
-        }));
+        /* A transcribed page shows the boxes the Configurator's page shows
+         * and nothing else. A setting it has no box for is still in the
+         * file and still readable, on the All Settings tab. */
 
         if (!rendered) { frag.appendChild(el('div', 'empty-note', emptyMessage())); }
         return frag;
@@ -2308,7 +2248,6 @@
 
     var RENDERERS = {
         setup: renderSetup,
-        ports: renderPorts,
         modes: renderModes,
         adjustments: renderAdjustments,
         servos: renderServos,

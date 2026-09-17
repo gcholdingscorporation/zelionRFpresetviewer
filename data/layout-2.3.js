@@ -133,6 +133,10 @@ window.RF_LAYOUT = {
                 { feature: 'CMS', label: 'CMS', desc: 'Configuration Menu System' }
             ] },
 
+            /* The Configurator lists the serial ports here, not on a tab of
+             * their own. */
+            { title: 'Serial Ports', serialPorts: true, rows: [] },
+
             { title: 'Board and Sensor Alignment', rows: [
                 { cli: 'align_board_roll', label: 'Roll Degrees' },
                 { cli: 'align_board_pitch', label: 'Pitch Degrees' },
