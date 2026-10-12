@@ -16,19 +16,24 @@ import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The whole app: a WebView showing the viewer, which is bundled in the APK's
  * assets. Nothing is fetched, so the app needs no network permission - in fact
  * it declares no permissions at all.
  *
- * Files reach the page one way only. Whether they arrive from another app
- * ("Open with", or a share), or from the viewer's own "Open file" button, they
- * are read here and handed to the page as window.RF_PRELOAD. Letting the
- * WebView populate the &lt;input type="file"&gt; itself would be the other
- * option, but content:// URIs in a file input on a file:// page are handled
- * inconsistently across WebView versions; one path that always works is better
- * than two that sometimes do.
+ * Files are always read here, never by the WebView. One that arrives from
+ * another app ("Open with", or a share) is handed to the page as
+ * window.RF_PRELOAD, which opens it as the page's file. One picked through the
+ * viewer's own buttons goes to window.RFLoadPicked instead, because the page
+ * has two pickers - "Open file" and "Compare with" - and only the page knows
+ * which of them was tapped. Letting the WebView populate the
+ * &lt;input type="file"&gt; itself would avoid the native read, but content://
+ * URIs in a file input on a file:// page are handled inconsistently across
+ * WebView versions; one path that always works is better than two that
+ * sometimes do.
  */
 public class MainActivity extends Activity {
 
@@ -41,9 +46,12 @@ public class MainActivity extends Activity {
     private WebView web;
     private boolean pageLoaded;
 
-    /** Set when a file arrives before the page has finished loading. */
+    /** Set when a file arrives from another app before the page has loaded. */
     private String pendingName;
     private String pendingText;
+
+    /** Files from the picker, as alternating name and text, until the page can take them. */
+    private final List<String> pendingPicked = new ArrayList<>();
 
     /** Held so the WebView's file input can be dismissed after we take over. */
     private ValueCallback<Uri[]> fileChooserCallback;
@@ -80,6 +88,10 @@ public class MainActivity extends Activity {
                 Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 pick.addCategory(Intent.CATEGORY_OPENABLE);
                 pick.setType("*/*");       // file managers label CLI dumps inconsistently
+                // "Open file" accepts two at once, which the page takes as a
+                // comparison; "Compare with" takes one.
+                pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                    params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
                 try {
                     startActivityForResult(pick, REQUEST_PICK_FILE);
                 } catch (Exception unavailable) {
@@ -112,9 +124,28 @@ public class MainActivity extends Activity {
         // The page's own file input stays empty either way: we load the file
         // ourselves rather than routing it back through the WebView.
         clearFileChooser();
-        if (result == RESULT_OK && data != null && data.getData() != null) {
-            load(data.getData());
+        if (result != RESULT_OK || data == null) {
+            return;
         }
+        List<Uri> uris = new ArrayList<>();
+        if (data.getClipData() != null) {
+            for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                Uri uri = data.getClipData().getItemAt(i).getUri();
+                if (uri != null) {
+                    uris.add(uri);
+                }
+            }
+        } else if (data.getData() != null) {
+            uris.add(data.getData());
+        }
+        for (Uri uri : uris) {
+            String text = readOrComplain(uri);
+            if (text != null) {
+                pendingPicked.add(displayName(uri));
+                pendingPicked.add(text);
+            }
+        }
+        flushPending();
     }
 
     private void clearFileChooser() {
@@ -142,21 +173,28 @@ public class MainActivity extends Activity {
     }
 
     private void load(Uri uri) {
+        String text = readOrComplain(uri);
+        if (text == null) {
+            return;
+        }
+        pendingName = displayName(uri);
+        pendingText = text;
+        flushPending();
+    }
+
+    /** The file's text, or null after telling the user why it could not be had. */
+    private String readOrComplain(Uri uri) {
         String text;
         try {
             text = readText(uri);
         } catch (Exception failed) {
             Toast.makeText(this, R.string.could_not_read, Toast.LENGTH_LONG).show();
-            return;
+            return null;
         }
         if (text == null) {
             Toast.makeText(this, R.string.too_large, Toast.LENGTH_LONG).show();
-            return;
         }
-
-        pendingName = displayName(uri);
-        pendingText = text;
-        flushPending();
+        return text;
     }
 
     private String readText(Uri uri) throws Exception {
@@ -205,18 +243,35 @@ public class MainActivity extends Activity {
         return last != null ? last : "";
     }
 
-    /** Hand a waiting file to the page, once the page exists to receive it. */
+    /** Hand waiting files to the page, once the page exists to receive them. */
     private void flushPending() {
-        if (!pageLoaded || pendingText == null) {
+        if (!pageLoaded) {
             return;
         }
-        String script =
-            "window.RF_PRELOAD = { name: " + jsString(pendingName) +
-            ", text: " + jsString(pendingText) + " };" +
-            "if (window.RFLoadPreload) { window.RFLoadPreload(); }";
-        pendingName = null;
-        pendingText = null;
-        web.evaluateJavascript(script, null);
+        if (pendingText != null) {
+            String script =
+                "window.RF_PRELOAD = { name: " + jsString(pendingName) +
+                ", text: " + jsString(pendingText) + " };" +
+                "if (window.RFLoadPreload) { window.RFLoadPreload(); }";
+            pendingName = null;
+            pendingText = null;
+            web.evaluateJavascript(script, null);
+        }
+        if (!pendingPicked.isEmpty()) {
+            StringBuilder files = new StringBuilder("[");
+            for (int i = 0; i < pendingPicked.size(); i += 2) {
+                if (i > 0) {
+                    files.append(',');
+                }
+                files.append("{ name: ").append(jsString(pendingPicked.get(i)))
+                     .append(", text: ").append(jsString(pendingPicked.get(i + 1)))
+                     .append(" }");
+            }
+            files.append(']');
+            pendingPicked.clear();
+            web.evaluateJavascript(
+                "if (window.RFLoadPicked) { window.RFLoadPicked(" + files + "); }", null);
+        }
     }
 
     /**

@@ -5794,6 +5794,11 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
         render();
     }
 
+    /* Which button opened the file picker: 1 for "Compare with…", 0 for
+     * either "Open file…". Only a wrapper's picker reads it; see
+     * RFLoadPicked. */
+    var pickTarget = 0;
+
     function readFile(file, slot, then) {
         var reader = new FileReader();
         reader.onload = function () {
@@ -5875,15 +5880,15 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             if (picked.length > 1) { readPair(picked[0], picked[1]); }
             else { readFile(picked[0]); }
         };
-        $('#open-btn').onclick = function () { $('#file-input').click(); };
-        $('#open-btn-2').onclick = function () { $('#file-input').click(); };
+        $('#open-btn').onclick = function () { pickTarget = 0; $('#file-input').click(); };
+        $('#open-btn-2').onclick = function () { pickTarget = 0; $('#file-input').click(); };
 
         /* The second file of a comparison has its own picker so that choosing
          * it never risks replacing the first. */
         $('#cmp-input').onchange = function (e) {
             if (e.target.files && e.target.files[0]) { readFile(e.target.files[0], 1); }
         };
-        $('#cmp-btn').onclick = function () { $('#cmp-input').click(); };
+        $('#cmp-btn').onclick = function () { pickTarget = 1; $('#cmp-input').click(); };
 
         $('#new-btn').onclick = function () {
             state.parsed = null;
@@ -5929,6 +5934,25 @@ window.RF_DB["4.6"] = {"extras":{"adjfuncs":{"0":"NONE","1":"RATE_PROFILE","2":"
             }
         };
         window.RFLoadPreload();
+
+        /* A wrapper that answers the page's file picker itself (the Android
+         * app does, because a file input on a file:// page is unreliable in a
+         * WebView) hands the chosen files back here. The wrapper cannot tell
+         * which of the two inputs asked, so the page remembers: without this a
+         * file picked through "Compare with…" replaced file A instead of
+         * becoming file B, and no comparison could ever be made. */
+        window.RFLoadPicked = function (picked) {
+            if (!picked || !picked.length) { return; }
+            if (pickTarget === 1 && state.files.length) {
+                load(picked[0].text, picked[0].name || '', 1);
+                return;
+            }
+            load(picked[0].text, picked[0].name || '');
+            /* Picking two at once is the comparison, as it is in a browser. */
+            if (picked.length > 1 && state.files.length) {
+                load(picked[1].text, picked[1].name || '', 1);
+            }
+        };
     }
 
     if (document.readyState === 'loading') {
